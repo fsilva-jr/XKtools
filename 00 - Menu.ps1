@@ -1,6 +1,7 @@
-﻿# ============================================
+# ============================================
 # XKTools Main Menu Script
 # Created by: Francisco Silva
+# Modified by: PowerShell GPT (Color-Aware Menu)
 # ============================================
 
 # --- Auto-elevate ---
@@ -41,20 +42,32 @@ $scriptMap = @{
     "9" = "09 - Sync Database.ps1"
 }
 
+# --- Track executed options ---
+$executedOptions = @()
+
 # --- Menu loop ---
 do {
     Clear-Host
     Write-Host "========== XKTools Main Menu ==========" -ForegroundColor Cyan
-    Write-Host "  1 - Stop Services"
-    Write-Host "  2 - AZCopy + SQLPackage Download"
-    Write-Host "  3 - Download BacPac from LCS"
-    Write-Host "  4 - Clean BacPac and Remove Tables"
-    Write-Host "  5 - Rename Database"
-    Write-Host "  6 - Restore BacPac"
-    Write-Host "  7 - Start Services"
-    Write-Host "  8 - Build Models"
-    Write-Host "  9 - Sync Database"
-    Write-Host " 10 - Exit"
+
+    foreach ($key in $scriptMap.Keys | Sort-Object {[int]$_}) {
+        $label = switch ($key) {
+            "1" { "Stop Services" }
+            "2" { "AZCopy + SQLPackage Download" }
+            "3" { "Download BacPac from LCS" }
+            "4" { "Clean BacPac and Remove Tables" }
+            "5" { "Rename Database" }
+            "6" { "Restore BacPac" }
+            "7" { "Start Services" }
+            "8" { "Build Models" }
+            "9" { "Sync Database" }
+        }
+
+        $color = if ($executedOptions -contains $key) { "DarkGray" } else { "Green" }
+        Write-Host ("  {0} - {1}" -f $key, $label) -ForegroundColor $color
+    }
+
+    Write-Host " 10 - Exit" -ForegroundColor Red
     Write-Host "======================================="
 
     $choice = Read-Host "Enter an option number (1–10)"
@@ -82,6 +95,11 @@ do {
         try {
             & powershell.exe -ExecutionPolicy Bypass -NoProfile -File $selectedScript
             Add-Content -Path $logFile -Value "[$(Get-Date -Format 'HH:mm:ss')] Finished: $selectedScript"
+
+            # ✅ Mark as executed
+            if (-not $executedOptions.Contains($choice)) {
+                $executedOptions += $choice
+            }
         }
         catch {
             Write-Warning "❌ Error while executing: $selectedScript"
