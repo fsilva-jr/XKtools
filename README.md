@@ -9,7 +9,7 @@ With more time I will add a description for each script.
 Hope it helps me save some time, if It helps you too, awesome!
 
 The first step to start using the XKTools is to run the "DownloadXKTools.ps1" command in you Powershell. The command will download the XKTools.zip file, unpack it to the C:\Temp\XKTools and eliminate the .zip file!
-Here is a simple line that you can use in your powershell instead of copying all the file:
+Here is a simple line that you can use in your powershell instead of copying all the file:<br/>
 iwr -useb https://raw.githubusercontent.com/fsilva-jr/XKtools/main/DownloadXKTools.ps1 | iex <br/>
 And here is the final result of it:
  ![image](https://github.com/user-attachments/assets/cc1a3027-a001-44b8-bfa9-a3779810ff59)
