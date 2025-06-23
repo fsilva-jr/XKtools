@@ -1,14 +1,19 @@
 # ============================================
 # XKTools Main Menu Script
 # Created by: Francisco Silva
-# Modified by: PowerShell GPT (Color-Aware Menu)
+# Updated for PS 5.1 & PS 7+ by PowerShell GPT
 # ============================================
 
+# --- Detect Current Shell ---
+$hostIsPwsh = $PSVersionTable.PSEdition -eq "Core"
+$elevationCommand = if ($hostIsPwsh) { "pwsh" } else { "powershell.exe" }
+
 # --- Auto-elevate ---
-If (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
     [Security.Principal.WindowsBuiltInRole]::Administrator)) {
+
     $args = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
-    Start-Process powershell.exe -Verb RunAs -ArgumentList $args
+    Start-Process -FilePath $elevationCommand -Verb RunAs -ArgumentList $args
     exit
 }
 
@@ -93,7 +98,7 @@ do {
         Write-Host "`n▶ Running script: $selectedScript" -ForegroundColor Yellow
 
         try {
-            & powershell.exe -ExecutionPolicy Bypass -NoProfile -File $selectedScript
+            & $elevationCommand -NoProfile -ExecutionPolicy Bypass -File "`"$selectedScript`""
             Add-Content -Path $logFile -Value "[$(Get-Date -Format 'HH:mm:ss')] Finished: $selectedScript"
 
             # ✅ Mark as executed
