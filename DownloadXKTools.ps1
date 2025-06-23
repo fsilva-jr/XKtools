@@ -22,4 +22,7 @@ if (Test-Path $innerFolder) {
 # Delete the zip file
 Remove-Item -Path $downloadPath -Force
 
+# Open XKTools folder
+Start-Process "C:\Temp\XKTools"
+
 
