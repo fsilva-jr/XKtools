@@ -1,7 +1,12 @@
 # ============================================
 # XKTools Main Menu Script
 # Created by: Francisco Silva
-# Updated for PS 5.1 & PS 7+ by PowerShell GPT
+# Updated by: PowerShell GPT
+# Features:
+# - Auto-elevation
+# - UTF-8 Encoding Fix (Recursive)
+# - PS 5.1 + PS 7+ Compatible
+# - Color-Aware Menu with Executed Option Tracking
 # ============================================
 
 # --- Detect Current Shell ---
@@ -24,6 +29,47 @@ if (-not (Test-Path $logFolder)) {
     New-Item -ItemType Directory -Path $logFolder | Out-Null
 }
 $logFile = Join-Path $logFolder "XKToolsMenu.log"
+
+# --- Fix character encoding issues recursively ---
+function Fix-CharacterEncodingIssues {
+    param (
+        [string]$RootFolder
+    )
+
+    $replacements = @{
+        'â€“' = '-'       # En dash corrupted
+        'â€”' = '--'      # Em dash
+        'â–¶' = '▶'
+        'âŒ' = '❌'
+        'âš ' = '⚠'
+        'â€œ' = '"'       # Smart double quote
+        'â€�' = '"'
+        'â€˜' = "'"       # Smart single quote
+        'â€™' = "'"
+    }
+
+    $ps1Files = Get-ChildItem -Path $RootFolder -Recurse -Filter *.ps1 -ErrorAction SilentlyContinue
+    foreach ($file in $ps1Files) {
+        try {
+            $content = Get-Content -Path $file.FullName -Raw -Encoding UTF8
+            $originalContent = $content
+
+            foreach ($pair in $replacements.GetEnumerator()) {
+                $content = $content -replace [Regex]::Escape($pair.Key), $pair.Value
+            }
+
+            if ($content -ne $originalContent) {
+                Write-Host "🔧 Fixed encoding issues in: $($file.FullName)" -ForegroundColor Yellow
+                Set-Content -Path $file.FullName -Value $content -Encoding UTF8
+            }
+        }
+        catch {
+            Write-Warning "⚠ Failed to process file: $($file.FullName)"
+        }
+    }
+}
+
+Fix-CharacterEncodingIssues -RootFolder $scriptDir
 
 # --- Logging function ---
 function Write-Log {
@@ -75,7 +121,7 @@ do {
     Write-Host " 10 - Exit" -ForegroundColor Red
     Write-Host "======================================="
 
-    $choice = Read-Host "Enter an option number (1–10)"
+    $choice = Read-Host "Enter an option number (1-10)"
     $valid = $scriptMap.ContainsKey($choice) -or $choice -eq "10"
 
     if (-not $valid) {
@@ -101,7 +147,6 @@ do {
             & $elevationCommand -NoProfile -ExecutionPolicy Bypass -File "`"$selectedScript`""
             Add-Content -Path $logFile -Value "[$(Get-Date -Format 'HH:mm:ss')] Finished: $selectedScript"
 
-            # ✅ Mark as executed
             if (-not $executedOptions.Contains($choice)) {
                 $executedOptions += $choice
             }
