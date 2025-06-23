@@ -22,6 +22,4 @@ if (Test-Path $innerFolder) {
 # Delete the zip file
 Remove-Item -Path $downloadPath -Force
 
-#Go to the XKTools folder and start the Menu
-& "c:\temp\xktools\00 - Manu.ps1"
 
