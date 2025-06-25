@@ -2,6 +2,7 @@
 # XKTools - Restore BacPac with GUI Dialogs and Logging
 # Created by: Francisco Silva
 # Contact: francisco@mtxn.com.br
+# Updated for PS 5.1 & PS 7+ by PowerShell GPT
 # ============================================
 
 # Auto-elevate to admin
