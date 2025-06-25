@@ -1,7 +1,8 @@
 # ============================================
 # 11 - Reindex All Database.ps1
 # Description: Executes AXPerf_IndexMaintenance on AxDB (localhost)
- # Created by: Francisco Silva
+# Created by: Francisco Silva
+# Contact: francisco@mtxn.com.br
 # Updated for PS 5.1 & PS 7+ by PowerShell GPT 
 # Logs: C:\Temp\XKTools\Logs\Reindex-AllDatabase.log
 # ============================================
