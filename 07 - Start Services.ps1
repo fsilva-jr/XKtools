@@ -1,6 +1,7 @@
 ﻿# ============================================
 # XKTools - Start Services with Logging
 # Created by: Francisco Silva
+# Contact: francisco@mtxn.com.br
 # ============================================
 
 # Auto-elevate to admin
