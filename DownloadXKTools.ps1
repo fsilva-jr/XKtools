@@ -1,3 +1,9 @@
+# ============================================
+# Download XKTools
+# Created by: Francisco Silva
+# Updated for PS 5.1 & PS 7+ by PowerShell GPT 
+# ============================================
+
 # Set paths
 $zipUrl = "https://codeload.github.com/fsilva-jr/XKtools/zip/refs/heads/main"
 $downloadPath = "C:\temp\XKtools-main.zip"
