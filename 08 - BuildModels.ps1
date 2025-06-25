@@ -1,6 +1,7 @@
 ﻿# ============================================
 # XKTools - Compile All Models (Simplified)
 # Created by: Francisco Silva
+# Contact: francisco@mtxn.com.br
 # ============================================
 
 # Auto-elevate if not administrator
