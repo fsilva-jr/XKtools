@@ -1,6 +1,7 @@
 ﻿# ============================================
 # XKTools - Restore BacPac with GUI Dialogs and Logging
 # Created by: Francisco Silva
+# Contact: francisco@mtxn.com.br
 # ============================================
 
 # Auto-elevate to admin
