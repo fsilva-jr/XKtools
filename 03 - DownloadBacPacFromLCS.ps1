@@ -1,6 +1,7 @@
 ﻿# ============================================
 # XKTools - Download BacPac from LCS with Folder Dialog and Logging
 # Created by: Francisco Silva
+# Contact: francisco@mtxn.com.br
 # ============================================
 
 # Auto-elevate to admin
