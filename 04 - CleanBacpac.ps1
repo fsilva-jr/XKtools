@@ -2,6 +2,7 @@
 # XKTools - BacPac Cleanup Script with Logging and Error Handling
 # Created by: Francisco Silva
 # Contact: francisco@mtxn.com.br
+# Updated for PS 5.1 & PS 7+ by PowerShell GPT
 # ============================================
 
 # Auto-elevate to admin
