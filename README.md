@@ -4,13 +4,15 @@ The command will download the XKTools.zip file, unpack it to the C:\Temp\XKTools
 iwr -useb https://raw.githubusercontent.com/fsilva-jr/XKtools/main/DownloadXKTools.ps1 | iex<br/>
 And here is the final result of it:
 ![image](https://github.com/user-attachments/assets/5d06cfd2-6235-438d-b81a-fadbdcd8c881)
+<br/>
+After using the tools, you can just cleanup the folder to save space in the disk using the following:<br/>
+iwr -useb  https://raw.githubusercontent.com/fsilva-jr/XKtools/main/DeleteXKTools.ps1 | iex <br/>
 
 Open the XKTools and run the 00 - Menu.ps1 with PowerShell:
 ![image](https://github.com/user-attachments/assets/e0b85ef3-22ed-4348-a131-a948f539071a)
 <br/>
 After using the tools, you can just cleanup the folder to save space in the disk using the following:<br/>
 iwr -useb  https://raw.githubusercontent.com/fsilva-jr/XKtools/main/DeleteXKTools.ps1 | iex <br/>
-
 
 
 I believe that the names of each option indicate their functionalities, but I will try to document each one here. Note that after choosing one option, the color will change, so you know it was executed!
