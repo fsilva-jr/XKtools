@@ -1,6 +1,7 @@
 ﻿# ============================================
 # Sync Database Script with Real-Time Logging
 # Created by: Francisco Silva
+# Contact: francisco@mtxn.com.br
 # ============================================
 
 # --- Auto-elevate if not running as admin ---
