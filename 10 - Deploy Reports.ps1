@@ -3,6 +3,7 @@
 # Author: Francisco Silva + PowerShell GPT
 # Contact: francisco@mtxn.com.br
 # Logs actions to: C:\Temp\XKTools\Logs\Deploy-D365Reports.log
+# Updated for PS 5.1 & PS 7+ by PowerShell GPT
 # ============================================
 
 # --- Ensure script is running as Administrator ---
