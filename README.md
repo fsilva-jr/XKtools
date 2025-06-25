@@ -7,9 +7,9 @@ And here is the final result of it:
 
 Open the XKTools and run the 00 - Menu.ps1 with PowerShell:
 ![image](https://github.com/user-attachments/assets/e0b85ef3-22ed-4348-a131-a948f539071a)
-
+<br/>
 After using the tools, you can just cleanup the folder to save space in the disk using the following:<br/>
-iwr -useb  https://raw.githubusercontent.com/fsilva-jr/XKtools/main/DeleteXKTools.ps1 | iex![image](https://github.com/user-attachments/assets/06a5d4f9-6d15-4215-b36a-2b4a9d338c88)
+iwr -useb  https://raw.githubusercontent.com/fsilva-jr/XKtools/main/DeleteXKTools.ps1 | iex <br/>
 
 
 
