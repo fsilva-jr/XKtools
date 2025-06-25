@@ -1,6 +1,7 @@
 ﻿# ============================================
 # XKTools - BacPac Cleanup Script with Logging and Error Handling
 # Created by: Francisco Silva
+# Contact: francisco@mtxn.com.br
 # ============================================
 
 # Auto-elevate to admin
