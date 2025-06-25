@@ -1,6 +1,7 @@
 ﻿# ============================================
 # XKTools - Download AZCopy and SQLPackage
 # Created by: Francisco Silva
+# Contact: francisco@mtxn.com.br
 # ============================================
 
 # Auto-elevate to admin (using pwsh if needed)
