@@ -1,6 +1,7 @@
 ﻿# ============================================
 # Stop Services Script - Versão com Logging Avançado
 # Created by: Francisco Silva
+# Contact: francisco@mtxn.com.br
 # ============================================
 
 # Auto-elevate to admin
