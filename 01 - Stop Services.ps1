@@ -2,6 +2,7 @@
 # Stop Services Script - Versão com Logging Avançado
 # Created by: Francisco Silva
 # Contact: francisco@mtxn.com.br
+# Updated for PS 5.1 & PS 7+ by PowerShell GPT
 # ============================================
 
 # Auto-elevate to admin
