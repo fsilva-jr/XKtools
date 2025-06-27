@@ -117,7 +117,7 @@ do {
     Write-Host "  X  - Exit" -ForegroundColor Red
     Write-Host "======================================="
 
-    $choice = Read-Host "Enter an option number (1–11) or X to exit"
+    $choice = Read-Host "Enter an option number (1-11) or X to exit"
     $choice = $choice.Trim()
 
     if ($choice -eq 'X' -or $choice -eq 'x') {
