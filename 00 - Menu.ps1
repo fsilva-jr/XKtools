@@ -1,32 +1,43 @@
 # ============================================
-# XKTools Main Menu (PowerShell-Compatible, Clean ASCII)
+# XKTools Main Menu (Simplified + PS Upgrade Safe)
 # Created by: Francisco Silva
 # Updated by: PowerShell GPT
 # ============================================
 
-# --- Check PowerShell version ---
+# --- PowerShell version check and upgrade ---
 $psMajor = $PSVersionTable.PSVersion.Major
 
 if ($psMajor -lt 7) {
     Write-Host "Your current PowerShell version is $psMajor. It is recommended to upgrade to PowerShell 7 or higher." -ForegroundColor Yellow
     $upgradeChoice = Read-Host "Do you want to upgrade PowerShell now? (Y/N)"
-    
+
     if ($upgradeChoice -match '^[Yy]$') {
+
         if (Get-Command winget -ErrorAction SilentlyContinue) {
-            Write-Host "Upgrading PowerShell using winget..." -ForegroundColor Cyan
-            Start-Process winget -ArgumentList "install --id Microsoft.Powershell --source winget --silent" -Wait -NoNewWindow
-            Write-Host "Upgrade command executed. Please restart your session and run the script again." -ForegroundColor Green
-            exit
+            try {
+                Write-Host "Upgrading PowerShell using winget..." -ForegroundColor Cyan
+                Start-Process winget -ArgumentList "install --id Microsoft.Powershell --source winget --silent" -Wait -NoNewWindow
+                Write-Host "✅ PowerShell upgrade initiated. Please restart your session to use the new version." -ForegroundColor Green
+                exit
+            } catch {
+                Write-Host "⚠ Winget failed to upgrade PowerShell." -ForegroundColor Red
+                Start-Process "https://aka.ms/powershell"
+            }
         } else {
-            Write-Host "Winget is not available on this system. Please install PowerShell manually from: https://aka.ms/powershell" -ForegroundColor Red
-            Start-Process "https://aka.ms/powershell"
-            exit
+            Write-Host "⚠ Winget is not installed on this system." -ForegroundColor Yellow
+            $manualChoice = Read-Host "Do you want to open the PowerShell download page now? (Y/N)"
+            if ($manualChoice -match '^[Yy]$') {
+                Start-Process "https://aka.ms/powershell"
+            }
+            Write-Host "Continuing to menu without upgrading PowerShell..." -ForegroundColor Cyan
         }
+    } else {
+        Write-Host "Continuing to menu without upgrading PowerShell." -ForegroundColor Yellow
     }
 }
 
-# --- Auto-elevate if not running as Administrator ---
-if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(`
+# --- Auto-elevate ---
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
     [Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
     exit
@@ -48,7 +59,7 @@ function Write-Log {
 
 Write-Log "==== XKTools Menu Execution Started ===="
 
-# --- Define menu options ---
+# --- Menu mapping ---
 $scriptMap = @{
     "1"  = "01 - Stop Services.ps1"
     "2"  = "02 - AZCopy_SQLPackage.ps1"
@@ -104,8 +115,7 @@ do {
             if (-not $executedOptions.Contains($choice)) {
                 $executedOptions += $choice
             }
-        }
-        catch {
+        } catch {
             Write-Host "Error while executing: $selectedScript" -ForegroundColor Red
             Write-Log "Error while executing ${selectedScript}: $($_.Exception.Message)"
         }
