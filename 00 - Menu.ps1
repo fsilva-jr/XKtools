@@ -1,14 +1,38 @@
 # ============================================
-# XKTools Main Menu (Simplified)
+# XKTools Main Menu (PowerShell-Compatible, Clean ASCII)
+# Created by: Francisco Silva
+# Updated by: PowerShell GPT
 # ============================================
 
-# Auto-elevate as Admin
-if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+# --- Check PowerShell version ---
+$psMajor = $PSVersionTable.PSVersion.Major
+
+if ($psMajor -lt 7) {
+    Write-Host "Your current PowerShell version is $psMajor. It is recommended to upgrade to PowerShell 7 or higher." -ForegroundColor Yellow
+    $upgradeChoice = Read-Host "Do you want to upgrade PowerShell now? (Y/N)"
+    
+    if ($upgradeChoice -match '^[Yy]$') {
+        if (Get-Command winget -ErrorAction SilentlyContinue) {
+            Write-Host "Upgrading PowerShell using winget..." -ForegroundColor Cyan
+            Start-Process winget -ArgumentList "install --id Microsoft.Powershell --source winget --silent" -Wait -NoNewWindow
+            Write-Host "Upgrade command executed. Please restart your session and run the script again." -ForegroundColor Green
+            exit
+        } else {
+            Write-Host "Winget is not available on this system. Please install PowerShell manually from: https://aka.ms/powershell" -ForegroundColor Red
+            Start-Process "https://aka.ms/powershell"
+            exit
+        }
+    }
+}
+
+# --- Auto-elevate if not running as Administrator ---
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(`
+    [Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
     exit
 }
 
-# Define base paths
+# --- Setup paths ---
 $scriptDir = "C:\Temp\XKTools"
 $logFolder = Join-Path $scriptDir "Logs"
 if (-not (Test-Path $logFolder)) {
@@ -24,24 +48,24 @@ function Write-Log {
 
 Write-Log "==== XKTools Menu Execution Started ===="
 
-# Menu options
+# --- Define menu options ---
 $scriptMap = @{
-    "1" = "01 - Stop Services.ps1"
-    "2" = "02 - AZCopy_SQLPackage.ps1"
-    "3" = "03 - DownloadBacPacFromLCS.ps1"
-    "4" = "04 - CleanBacpac.ps1"
-    "5" = "05 - RenameDatabase.ps1"
-    "6" = "06 - RestoreBacPac.ps1"
-    "7" = "07 - Start Services.ps1"
-    "8" = "08 - BuildModels.ps1"
-    "9" = "09 - Sync Database.ps1"
+    "1"  = "01 - Stop Services.ps1"
+    "2"  = "02 - AZCopy_SQLPackage.ps1"
+    "3"  = "03 - DownloadBacPacFromLCS.ps1"
+    "4"  = "04 - CleanBacpac.ps1"
+    "5"  = "05 - RenameDatabase.ps1"
+    "6"  = "06 - RestoreBacPac.ps1"
+    "7"  = "07 - Start Services.ps1"
+    "8"  = "08 - BuildModels.ps1"
+    "9"  = "09 - Sync Database.ps1"
     "10" = "10 - Deploy reports.ps1"
     "11" = "11 - Reindex All Database.ps1"
 }
 
 $executedOptions = @()
 
-# Menu loop
+# --- Menu loop ---
 do {
     Clear-Host
     Write-Host "========== XKTools Main Menu ==========" -ForegroundColor Cyan
@@ -55,7 +79,7 @@ do {
     Write-Host "  X - Exit" -ForegroundColor Red
     Write-Host "======================================="
 
-    $choice = Read-Host "Enter an option number (From 1 to 11) or X to exit"
+    $choice = Read-Host "Enter an option number (from 1 to 11) or X to exit"
 
     if ($choice -eq "X" -or $choice -eq "x") {
         Write-Host "`nExiting XKTools. Goodbye!" -ForegroundColor Cyan
@@ -85,8 +109,7 @@ do {
             Write-Host "Error while executing: $selectedScript" -ForegroundColor Red
             Write-Log "Error while executing ${selectedScript}: $($_.Exception.Message)"
         }
-    }
-    else {
+    } else {
         Write-Host "Script file not found: $selectedScript" -ForegroundColor Red
         Write-Log "File not found: $selectedScript"
     }
