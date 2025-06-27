@@ -55,7 +55,7 @@ do {
     Write-Host "  X - Exit" -ForegroundColor Red
     Write-Host "======================================="
 
-    $choice = Read-Host "Enter an option number (1–11) or X to exit"
+    $choice = Read-Host "Enter an option number (From 1 to 11) or X to exit"
 
     if ($choice -eq "X" -or $choice -eq "x") {
         Write-Host "`nExiting XKTools. Goodbye!" -ForegroundColor Cyan
