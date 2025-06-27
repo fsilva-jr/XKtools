@@ -1,7 +1,9 @@
 My personal tool to manage F&O environments. It was created based on my individual needs, utilizing scripts generated with the assistance of ChatGPT. Every single line in any of the scripts was created using ChatGPT. I've made some adjustments to accommodate my daily work. Always using ChatGPT! Run the "00 - Menu.ps1" file to have access to different options. I believe that the name of the scripts a very clear and gives you a tip about what it executes. I will make changes based on the issues or different needs I find during its execution. Some of the scripts use the D365FO.Tools to run D365F&O administrative tasks like Build, Sync DB, or cleanup tables before restoring a .bacpac file. With more time, I will add a description for each script. I hope it helps me save some time; if it helps you too, that's awesome!
 The first step to start using the XKTools is to run the "DownloadXKTools.ps1" command in your PowerShell.<br/>
 The command will download the XKTools.zip file, unpack it to the C:\Temp\XKTools, and eliminate the .zip file! Here is a simple line that you can use in your PowerShell instead of copying the entire file:<br/>
-iwr -useb https://raw.githubusercontent.com/fsilva-jr/XKtools/main/DownloadXKTools.ps1 | iex<br/>
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/fsilva-jr/XKtools/main/DownloadXKTools.ps1" -OutFile "$env:TEMP\DownloadXKTools.ps1"
+powershell -ExecutionPolicy Bypass -File "$env:TEMP\DownloadXKTools.ps1"
+<br/>
 And here is the final result of it:
 ![image](https://github.com/user-attachments/assets/5d06cfd2-6235-438d-b81a-fadbdcd8c881)
 <br/>
