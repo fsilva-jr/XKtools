@@ -2,7 +2,6 @@
 # XKTools Main Menu Script
 # Created by: Francisco Silva
 # Updated by: PowerShell GPT
-# Universal PowerShell Version + Upgrade Support 🔧
 # ============================================
 
 # --- Detect Shell Type ---
