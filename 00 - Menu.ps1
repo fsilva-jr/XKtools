@@ -1,10 +1,10 @@
 # ============================================
 # XKTools Main Menu Script
 # Created by: Francisco Silva
-# Updated for PS 5.1 & PS 7+ by PowerShell GPT
+# Universal PowerShell Version by PowerShell GPT 🔧
 # ============================================
 
-# --- Detect Current Shell ---
+# --- Detect Shell Type ---
 $hostIsPwsh = $PSVersionTable.PSEdition -eq "Core"
 $elevationCommand = if ($hostIsPwsh) { "pwsh" } else { "powershell.exe" }
 
@@ -17,15 +17,16 @@ if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
     exit
 }
 
-# --- Setup paths ---
+# --- Setup Paths ---
 $scriptDir = "C:\Temp\XKTools"
 $logFolder = Join-Path $scriptDir "Logs"
-if (-not (Test-Path $logFolder)) {
-    New-Item -ItemType Directory -Path $logFolder | Out-Null
-}
 $logFile = Join-Path $logFolder "XKToolsMenu.log"
 
-# --- Logging function ---
+if (-not (Test-Path $logFolder)) {
+    New-Item -ItemType Directory -Path $logFolder -Force | Out-Null
+}
+
+# --- Logging Function ---
 function Write-Log {
     param ([string]$Message)
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
@@ -34,86 +35,86 @@ function Write-Log {
 
 Write-Log "==== XKTools Menu Execution Started ===="
 
-# --- Menu mapping ---
+# --- Menu Items Map ---
 $scriptMap = @{
-    "1" = "01 - Stop Services.ps1"
-    "2" = "02 - AZCopy_SQLPackage.ps1"
-    "3" = "03 - DownloadBacPacFromLCS.ps1"
-    "4" = "04 - CleanBacpac.ps1"
-    "5" = "05 - RenameDatabase.ps1"
-    "6" = "06 - RestoreBacPac.ps1"
-    "7" = "07 - Start Services.ps1"
-    "8" = "08 - BuildModels.ps1"
-    "9" = "09 - Sync Database.ps1"
+    "1"  = "01 - Stop Services.ps1"
+    "2"  = "02 - AZCopy_SQLPackage.ps1"
+    "3"  = "03 - DownloadBacPacFromLCS.ps1"
+    "4"  = "04 - CleanBacpac.ps1"
+    "5"  = "05 - RenameDatabase.ps1"
+    "6"  = "06 - RestoreBacPac.ps1"
+    "7"  = "07 - Start Services.ps1"
+    "8"  = "08 - BuildModels.ps1"
+    "9"  = "09 - Sync Database.ps1"
+    "10" = "10 - Deploy reports.ps1"
+    "11" = "11 - Reindex All Database.ps1"
 }
 
-# --- Track executed options ---
 $executedOptions = @()
 
-# --- Menu loop ---
+# --- Menu Loop ---
 do {
     Clear-Host
     Write-Host "========== XKTools Main Menu ==========" -ForegroundColor Cyan
 
     foreach ($key in $scriptMap.Keys | Sort-Object {[int]$_}) {
         $label = switch ($key) {
-            "1" { "Stop Services" }
-            "2" { "AZCopy + SQLPackage Download" }
-            "3" { "Download BacPac from LCS" }
-            "4" { "Clean BacPac and Remove Tables" }
-            "5" { "Rename Database" }
-            "6" { "Restore BacPac" }
-            "7" { "Start Services" }
-            "8" { "Build Models" }
-            "9" { "Sync Database" }
+            "1"  { "Stop Services" }
+            "2"  { "AZCopy + SQLPackage Download" }
+            "3"  { "Download BacPac from LCS" }
+            "4"  { "Clean BacPac and Remove Tables" }
+            "5"  { "Rename Database" }
+            "6"  { "Restore BacPac" }
+            "7"  { "Start Services" }
+            "8"  { "Build Models" }
+            "9"  { "Sync Database" }
+            "10" { "Deploy D365 Reports" }
+            "11" { "Reindex All Database" }
         }
 
         $color = if ($executedOptions -contains $key) { "DarkGray" } else { "Green" }
-        Write-Host ("  {0} - {1}" -f $key, $label) -ForegroundColor $color
+        Write-Host ("  {0,2} - {1}" -f $key, $label) -ForegroundColor $color
     }
 
-    Write-Host " 10 - Exit" -ForegroundColor Red
+    Write-Host "  X  - Exit" -ForegroundColor Red
     Write-Host "======================================="
 
-    $choice = Read-Host "Enter an option number (1-10)"
-    $valid = $scriptMap.ContainsKey($choice) -or $choice -eq "10"
+    $choice = Read-Host "Enter an option number (1–11) or X to exit"
+    $choice = $choice.Trim()
 
-    if (-not $valid) {
-        Write-Host "❌ Invalid option. Please select a number from the menu." -ForegroundColor Red
-        Start-Sleep -Seconds 2
-        continue
-    }
-
-    if ($choice -eq "10") {
+    if ($choice -eq 'X' -or $choice -eq 'x') {
         Write-Host "`nExiting XKTools. Goodbye!" -ForegroundColor Cyan
         Write-Log "==== XKTools Menu Execution Ended ===="
         break
     }
 
-    # --- Run selected script ---
+    if (-not $scriptMap.ContainsKey($choice)) {
+        Write-Host "❌ Invalid option. Please select a valid number from the menu." -ForegroundColor Red
+        Start-Sleep -Seconds 2
+        continue
+    }
+
     $selectedScript = Join-Path $scriptDir $scriptMap[$choice]
     if (Test-Path $selectedScript) {
-        $logEntry = "`n[$(Get-Date -Format 'HH:mm:ss')] Running: $selectedScript"
-        Add-Content -Path $logFile -Value $logEntry
         Write-Host "`n▶ Running script: $selectedScript" -ForegroundColor Yellow
+        Write-Log "Executing script: $selectedScript"
 
         try {
             & $elevationCommand -NoProfile -ExecutionPolicy Bypass -File "`"$selectedScript`""
-            Add-Content -Path $logFile -Value "[$(Get-Date -Format 'HH:mm:ss')] Finished: $selectedScript"
+            Write-Log "Finished script: $selectedScript"
 
-            # ✅ Mark as executed
             if (-not $executedOptions.Contains($choice)) {
                 $executedOptions += $choice
             }
         }
         catch {
-            Write-Warning "❌ Error while executing: $selectedScript"
-            Write-Log ("❌ Error while executing ${selectedScript}: " + $_.Exception.Message)
+            Write-Warning "❌ Error while executing script."
+            Write-Log "❌ ERROR: $($_.Exception.Message)"
         }
 
     } else {
         Write-Warning "⚠ Script file not found: $selectedScript"
-        Add-Content -Path $logFile -Value "[$(Get-Date -Format 'HH:mm:ss')] ERROR: File not found - $selectedScript"
+        Write-Log "❌ ERROR: File not found - $selectedScript"
     }
 
     Write-Host "`nPress Enter to return to the menu..."
