@@ -1,34 +1,71 @@
 # ============================================
 # Download XKTools
 # Created by: Francisco Silva
-# Updated for PS 5.1 & PS 7+ by PowerShell GPT 
+# Updated by: PowerShell GPT
+# Safe, clean, and version-independent downloader
 # ============================================
 
-# Set paths
-$zipUrl = "https://codeload.github.com/fsilva-jr/XKtools/zip/refs/heads/main"
-$downloadPath = "C:\temp\XKtools-main.zip"
-$extractFolder = "C:\temp\XKTools"
+$ErrorActionPreference = "Stop"
 
-# Create target folder if it doesn't exist
-New-Item -Path "C:\temp" -ItemType Directory -Force | Out-Null
+# --- Define URLs and paths ---
+$repoName = "XKtools"
+$zipUrl = "https://codeload.github.com/fsilva-jr/$repoName/zip/refs/heads/main"
+$tempRoot = "C:\Temp"
+$zipFile = Join-Path $tempRoot "$repoName-main.zip"
+$extractFolder = Join-Path $tempRoot "XKTools"
+$logFolder = Join-Path $extractFolder "Logs"
+$mainScript = Join-Path $extractFolder "00 - Menu.ps1"
 
-# Download the zip file
-Invoke-WebRequest -Uri $zipUrl -OutFile $downloadPath
-
-# Extract zip to temp location first
-Expand-Archive -Path $downloadPath -DestinationPath $extractFolder -Force
-
-# Move contents from inner folder (e.g., XKtools-main) if necessary
-$innerFolder = Join-Path $extractFolder "XKtools-main"
-if (Test-Path $innerFolder) {
-    Get-ChildItem -Path $innerFolder | Move-Item -Destination $extractFolder -Force
-    Remove-Item -Path $innerFolder -Recurse -Force
+# --- Create necessary folders ---
+if (-not (Test-Path $tempRoot)) {
+    New-Item -Path $tempRoot -ItemType Directory | Out-Null
+}
+if (-not (Test-Path $extractFolder)) {
+    New-Item -Path $extractFolder -ItemType Directory | Out-Null
+}
+if (-not (Test-Path $logFolder)) {
+    New-Item -Path $logFolder -ItemType Directory | Out-Null
 }
 
-# Delete the zip file
-Remove-Item -Path $downloadPath -Force
+# --- Logging Function ---
+function Write-Log {
+    param ([string]$Message)
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logFile = Join-Path $logFolder "DownloadXKTools.log"
+    Add-Content -Path $logFile -Value "$timestamp [INFO] $Message"
+}
 
-# Open XKTools folder
-Start-Process "C:\Temp\XKTools"
+try {
+    Write-Host "`n🌐 Downloading XKTools from GitHub..." -ForegroundColor Cyan
+    Write-Log "Downloading ZIP from $zipUrl"
+    Invoke-WebRequest -Uri $zipUrl -OutFile $zipFile -UseBasicParsing
 
+    Write-Host "📦 Extracting contents..." -ForegroundColor Cyan
+    Expand-Archive -Path $zipFile -DestinationPath $extractFolder -Force
 
+    # --- Move extracted inner folder contents ---
+    $innerFolder = Join-Path $extractFolder "$repoName-main"
+    if (Test-Path $innerFolder) {
+        Get-ChildItem -Path $innerFolder -Force | Move-Item -Destination $extractFolder -Force
+        Remove-Item -Path $innerFolder -Recurse -Force
+        Write-Log "Moved contents from $innerFolder to $extractFolder"
+    }
+
+    # --- Cleanup zip ---
+    Remove-Item -Path $zipFile -Force
+    Write-Log "Deleted ZIP file"
+
+    # --- Launch the main menu script ---
+    if (Test-Path $mainScript) {
+        Write-Host "`n🚀 Launching XKTools Menu..." -ForegroundColor Green
+        Write-Log "Launching $mainScript"
+        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$mainScript`"" -Verb RunAs
+    } else {
+        Write-Host "❌ Could not find main menu script: $mainScript" -ForegroundColor Red
+        Write-Log "ERROR: Menu script not found at $mainScript"
+    }
+
+} catch {
+    Write-Host "❌ An error occurred: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Log "ERROR: $($_.Exception.Message)"
+}
