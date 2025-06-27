@@ -1,7 +1,8 @@
 # ============================================
 # XKTools Main Menu Script
 # Created by: Francisco Silva
-# Universal PowerShell Version by PowerShell GPT 🔧
+# Updated by: PowerShell GPT
+# Universal PowerShell Version + Upgrade Support 🔧
 # ============================================
 
 # --- Detect Shell Type ---
@@ -34,6 +35,43 @@ function Write-Log {
 }
 
 Write-Log "==== XKTools Menu Execution Started ===="
+
+# --- PowerShell Version Check and Upgrade ---
+$currentVersion = $PSVersionTable.PSVersion
+Write-Host "`n🔍 Detected PowerShell version: $currentVersion" -ForegroundColor Yellow
+
+if ($currentVersion.Major -lt 7) {
+    Write-Warning "⚠ Your current PowerShell version is older than 7. PowerShell 7+ is recommended."
+
+    $upgrade = Read-Host "Do you want to upgrade PowerShell to the latest version now? (Y/N)"
+    if ($upgrade.Trim().ToUpper() -eq "Y") {
+
+        $wingetExists = Get-Command "winget.exe" -ErrorAction SilentlyContinue
+
+        if ($wingetExists) {
+            try {
+                Write-Host "`n🚀 Using winget to install PowerShell 7..." -ForegroundColor Cyan
+                Start-Process "winget" -ArgumentList "install --id Microsoft.Powershell --source winget --accept-package-agreements --accept-source-agreements" -Verb RunAs
+                Write-Log "PowerShell upgrade started via winget."
+                Write-Host "`n✅ Upgrade process started. Please relaunch this script using PowerShell 7 after install completes." -ForegroundColor Green
+            }
+            catch {
+                Write-Warning "❌ Failed to start winget upgrade: $($_.Exception.Message)"
+                Write-Log "❌ winget upgrade failed: $($_.Exception.Message)"
+            }
+        } else {
+            Write-Warning "⚠ winget is not available on this system."
+            Write-Host "Opening download page instead..." -ForegroundColor Yellow
+            Start-Process "https://aka.ms/powershell-release?tag=stable"
+            Write-Log "winget missing. Opened browser for manual PowerShell 7 install."
+        }
+
+        exit
+    } else {
+        Write-Host "🆗 Continuing with current PowerShell version..." -ForegroundColor Gray
+        Write-Log "User declined PowerShell upgrade. Proceeding..."
+    }
+}
 
 # --- Menu Items Map ---
 $scriptMap = @{
