@@ -2,7 +2,6 @@
 # Download XKTools
 # Created by: Francisco Silva
 # Updated by: PowerShell GPT
-# Safe, clean, and version-independent downloader
 # ============================================
 
 $ErrorActionPreference = "Stop"
