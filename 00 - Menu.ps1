@@ -1,160 +1,157 @@
-# ============================================
-# XKTools Main Menu (Simplified Improved)
-# Created by: Francisco Silva
-# Updated by: PowerShell GPT
-# ============================================
+ Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
 
-Add-Type -AssemblyName System.Windows.Forms
+# === Hide console window ===
+Add-Type -Name Window -Namespace Win32 -MemberDefinition '
+    [DllImport("user32.dll")]
+    public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr GetConsoleWindow();
+'
+$consolePtr = [Win32.Window]::GetConsoleWindow()
+[Win32.Window]::ShowWindowAsync($consolePtr, 0)
 
 # === Globals ===
 $scriptDir = "C:\Temp\XKTools"
-$logFolder = Join-Path $scriptDir "Logs"
-$logFile   = Join-Path $logFolder "XKToolsMenu.log"
-$executedOptions = @()
+$logDir = Join-Path $scriptDir "Logs"
+$logFile = Join-Path $logDir "XKToolsGUI.log"
 
-# === Setup Directories ===
-if (-not (Test-Path $logFolder)) {
-    New-Item -ItemType Directory -Path $logFolder -Force | Out-Null
+$scriptMap = @{
+    "1"  = "01 - Stop Services.ps1"
+    "2"  = "02 - AZCopy_SQLPackage.ps1"
+    "3"  = "03 - DownloadBacPacFromLCS.ps1"
+    "4"  = "04 - CleanBacpac.ps1"
+    "5"  = "05 - RenameDatabase.ps1"
+    "6"  = "06 - RestoreBacPac.ps1"
+    "7"  = "07 - Start Services.ps1"
+    "8"  = "08 - BuildModels.ps1"
+    "9"  = "09 - Sync Database.ps1"
+    "10" = "10 - Deploy reports.ps1"
+    "11" = "11 - Reindex All Database.ps1"
+    "12" = "12 - UpdateWebAndWifConfig.ps1"
 }
 
-# === Logger ===
-function Write-Log {
-    param (
-        [string]$Message,
-        [ValidateSet("INFO", "WARN", "ERROR")]
-        [string]$Level = "INFO"
-    )
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    $entry = "$timestamp [$Level] $Message"
-    Add-Content -Path $logFile -Value $entry
-    Write-Host $entry
-}
+$executedScripts = @{}
+$buttons = @{}
 
-# === Elevate to Admin if Needed ===
+# === Ensure Admin ===
 function Ensure-Admin {
-    $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
-        [Security.Principal.WindowsBuiltInRole]::Administrator
-    )
-    if (-not $isAdmin) {
-        Write-Log "Not running as administrator. Relaunching elevated..." -Level "WARN"
-        Start-Process -FilePath "powershell" -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
+    $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal $currentUser
+    if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        Start-Process powershell.exe "-ExecutionPolicy Bypass -NoProfile -File `"$PSCommandPath`"" -Verb RunAs
         exit
     }
 }
 
-# === Check PowerShell Version and Offer Upgrade ===
-function Check-PowerShellVersion {
-    $psMajor = $PSVersionTable.PSVersion.Major
-    if ($psMajor -lt 7) {
-        Write-Host "⚠ PowerShell $psMajor detected. Recommended: PowerShell 7 or higher." -ForegroundColor Yellow
-        $upgrade = Read-Host "Do you want to upgrade PowerShell now? (Y/N)"
-        if ($upgrade -match '^[Yy]$') {
-            if (Get-Command winget -ErrorAction SilentlyContinue) {
-                try {
-                    Write-Host "Upgrading via winget..." -ForegroundColor Cyan
-                    Start-Process winget -ArgumentList "install --id Microsoft.Powershell --source winget --silent" -Wait -NoNewWindow
-                    Write-Host "✅ Upgrade started. Please restart the session." -ForegroundColor Green
-                    exit
-                } catch {
-                    Write-Log "Winget upgrade failed: $_" -Level "ERROR"
-                    Start-Process "https://aka.ms/powershell"
-                }
-            } else {
-                Write-Host "Winget not found. Opening download page..." -ForegroundColor Yellow
-                Start-Process "https://aka.ms/powershell"
-            }
-        }
+# === Logging ===
+function Write-Log {
+    param (
+        [string]$Message,
+        [string]$Level = "INFO"
+    )
+    if (-not (Test-Path $logDir)) {
+        New-Item -ItemType Directory -Path $logDir -Force | Out-Null
     }
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    "$timestamp [$Level] $Message" | Out-File -Append -FilePath $logFile
 }
 
-# === Resolve PowerShell Engine ===
-function Get-Engine {
-    $pwsh = Get-Command pwsh -ErrorAction SilentlyContinue
-    return $(if ($pwsh) { "pwsh" } else { "powershell" })
-}
+# === Execute Script ===
+function Execute-Script {
+    param (
+        [string]$key,
+        [string]$file
+    )
 
-# === Run Script from Menu ===
-function Execute-SelectedScript {
-    param([string]$ScriptName, [string]$MenuKey)
-
-    $fullPath = Join-Path $scriptDir $ScriptName
+    $fullPath = Join-Path $scriptDir $file
 
     if (-not (Test-Path $fullPath)) {
-        Write-Log "Script file not found: $fullPath" -Level "ERROR"
-        Write-Host "❌ Script not found: $ScriptName" -ForegroundColor Red
+        [System.Windows.Forms.MessageBox]::Show("Script not found: $file", "Error", 'OK', 'Error')
+        Write-Log "❌ Script not found: $file" "ERROR"
         return
     }
 
-    Write-Log "Running: $fullPath"
-    Write-Host "`n▶ Running script: $ScriptName" -ForegroundColor Yellow
-
     try {
-        $engine = Get-Engine
-        & $engine -ExecutionPolicy Bypass -NoProfile -File "`"$fullPath`""
-        Write-Log "✅ Finished: $ScriptName"
-        if (-not $executedOptions.Contains($MenuKey)) {
-            $executedOptions += $MenuKey
-        }
+        Write-Log "▶ Executing: $file"
+
+        Start-Process -FilePath "powershell.exe" `
+            -ArgumentList "-ExecutionPolicy Bypass -NoProfile -File `"$fullPath`"" `
+            -WindowStyle Normal
+
+        $executedScripts[$key] = $true
+        Update-Button-Colors
+        Write-Log "✅ Launched: $file"
     } catch {
-        Write-Log "❌ Error while executing: $ScriptName - $($_.Exception.Message)" -Level "ERROR"
-        Write-Host "❌ Error during execution." -ForegroundColor Red
+        Write-Log "❌ Failed to launch $file - $_" "ERROR"
+        [System.Windows.Forms.MessageBox]::Show("Error: $file`n$_", "Execution Failed", 'OK', 'Error')
     }
 }
 
-# === Show Menu ===
-function Show-Menu {
-    $scriptMap = @{
-        "1"  = "01 - Stop Services.ps1"
-        "2"  = "02 - AZCopy_SQLPackage.ps1"
-        "3"  = "03 - DownloadBacPacFromLCS.ps1"
-        "4"  = "04 - CleanBacpac.ps1"
-        "5"  = "05 - RenameDatabase.ps1"
-        "6"  = "06 - RestoreBacPac.ps1"
-        "7"  = "07 - Start Services.ps1"
-        "8"  = "08 - BuildModels.ps1"
-        "9"  = "09 - Sync Database.ps1"
-        "10" = "10 - Deploy reports.ps1"
-        "11" = "11 - Reindex All Database.ps1"
-        "12" = "12 - UpdateWebAndWifConfig.ps1"  # ✅ NEW OPTION
+# === Update Button Color ===
+function Update-Button-Colors {
+    foreach ($key in $buttons.Keys) {
+        if ($executedScripts.ContainsKey($key)) {
+            $buttons[$key].BackColor = [System.Drawing.Color]::LightGray
+        }
     }
-
-    do {
-        Clear-Host
-        Write-Host "========== XKTools Main Menu ==========" -ForegroundColor Cyan
-
-        foreach ($key in $scriptMap.Keys | Sort-Object {[int]$_}) {
-            $label = $scriptMap[$key] -replace '\.ps1$', ''
-            $color = if ($executedOptions -contains $key) { "DarkGray" } else { "Green" }
-            Write-Host ("  {0} - {1}" -f $key, $label) -ForegroundColor $color
-        }
-
-        Write-Host "  X - Exit" -ForegroundColor Red
-        Write-Host "======================================="
-
-        $choice = Read-Host "Enter an option number (1/12) or X to exit"
-
-        if ($choice -match '^[Xx]$') {
-            Write-Host "`n👋 Exiting XKTools. Goodbye!" -ForegroundColor Cyan
-            Write-Log "==== XKTools Menu Execution Ended ===="
-            break
-        }
-
-        if (-not $scriptMap.ContainsKey($choice)) {
-            Write-Host "⚠ Invalid option. Try again." -ForegroundColor Red
-            Start-Sleep -Seconds 2
-            continue
-        }
-
-        Execute-SelectedScript -ScriptName $scriptMap[$choice] -MenuKey $choice
-
-        Write-Host ""
-        [void](Read-Host "Press Enter to return to the menu...")  # ✅ Corrigido aqui!
-
-    } while ($true)
 }
 
-# === Main ===
-Write-Log "==== XKTools Menu Execution Started ===="
+# === GUI ===
+$Form = New-Object System.Windows.Forms.Form
+$Form.Text = "XKTools GUI Menu"
+$Form.Size = New-Object System.Drawing.Size(500, 740)
+$Form.StartPosition = "CenterScreen"
+$Form.BackColor = 'White'
+
+$y = 20
+
+foreach ($key in $scriptMap.Keys | Sort-Object {[int]$_}) {
+    $localKey = $key  # 🔐 Prevent closure issues
+
+    $label = $scriptMap[$localKey] -replace '\.ps1$', ''
+    $btn = New-Object System.Windows.Forms.Button
+    $btn.Text = "$localKey - $label"
+    $btn.Size = New-Object System.Drawing.Size(440, 35)
+    $btn.Location = New-Object System.Drawing.Point(20, $y)
+    $btn.BackColor = [System.Drawing.Color]::LightGreen
+    $btn.Tag = $localKey
+
+    $buttons[$localKey] = $btn
+
+    $btn.Add_Click({
+        $btnKey = $this.Tag
+
+        if ([string]::IsNullOrWhiteSpace($btnKey)) {
+            [System.Windows.Forms.MessageBox]::Show("⚠ Button has no key.", "Error", 'OK', 'Warning')
+            Write-Log "⚠ Button clicked with missing tag." "WARN"
+            return
+        }
+
+        if ($scriptMap.ContainsKey($btnKey)) {
+            Execute-Script -key $btnKey -file $scriptMap[$btnKey]
+        } else {
+            [System.Windows.Forms.MessageBox]::Show("❌ Unknown script key: $btnKey", "Error", 'OK', 'Error')
+            Write-Log "❌ Unknown key: $btnKey" "ERROR"
+        }
+    })
+
+    $Form.Controls.Add($btn)
+    $y += 40
+}
+
+# === Exit Button ===
+$exitButton = New-Object System.Windows.Forms.Button
+$exitButton.Text = "Exit"
+$exitButton.Size = New-Object System.Drawing.Size(440, 35)
+$exitButton.Location = New-Object System.Drawing.Point(20, $y)
+$exitButton.BackColor = [System.Drawing.Color]::Tomato
+$exitButton.Add_Click({ $Form.Close() })
+$Form.Controls.Add($exitButton)
+
+# === MAIN ===
 Ensure-Admin
-Check-PowerShellVersion
-Show-Menu
+Write-Log "==== XKTools GUI Menu Launched ===="
+[void]$Form.ShowDialog()
+Write-Log "==== XKTools GUI Menu Closed ===="
+ 
