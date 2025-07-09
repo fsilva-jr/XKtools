@@ -1,23 +1,22 @@
-# ============================================
-# 11 - Reindex All Database.ps1
-# Description: Executes AXPerf_IndexMaintenance on AxDB (localhost)
-# Created by: Francisco Silva
-# Contact: francisco@mtxn.com.br
-# Updated for PS 5.1 & PS 7+ by PowerShell GPT 
-# Logs: C:\Temp\XKTools\Logs\Reindex-AllDatabase.log
+ # ============================================
+# XKTools - Reindex All Database with GUI + Logging
+# Author: Francisco Silva + PowerShell GPT
 # ============================================
 
 # --- Auto-elevate ---
 If (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
     [Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Warning "⚠ Relaunching script as Administrator..."
     Start-Process -FilePath "powershell.exe" -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
     exit
 }
 
-# --- Logging setup ---
+# --- Load required types ---
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
+# --- Logging Setup ---
 $logFolder = "C:\Temp\XKTools\Logs"
-$logFile = Join-Path $logFolder "Reindex-AllDatabase.log"
+$logFile   = Join-Path $logFolder "Reindex-AllDatabase.log"
 if (-not (Test-Path $logFolder)) {
     New-Item -ItemType Directory -Path $logFolder -Force | Out-Null
 }
@@ -25,18 +24,17 @@ if (-not (Test-Path $logFolder)) {
 function Write-Log {
     param([string]$Message)
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    Add-Content -Path $logFile -Value "$timestamp [INFO] $Message"
+    Add-Content -Path $logFile -Value "$timestamp [INFO] $Message" -Encoding UTF8
 }
 
-Write-Log "==== Reindex-AllDatabase Script Execution Started ===="
+Write-Log "==== Reindex-AllDatabase Script Started ===="
 
-# --- Hardcoded for AxDB on localhost ---
+# --- SQL Settings ---
 $serverName = "localhost"
 $databaseName = "AxDB"
 $connectionString = "Server=$serverName;Database=$databaseName;Integrated Security=True;TrustServerCertificate=True"
 
 Write-Log "Connecting to $serverName | Database: $databaseName"
-Write-Log "Using Windows Authentication with trusted certificate"
 
 # --- T-SQL Block ---
 $sqlCommand = @"
@@ -50,47 +48,57 @@ EXEC @return_value = [dbo].[AXPerf_IndexMaintenance]
 SELECT 'Return Value' = @return_value;
 "@
 
-# --- Simulate progress bar ---
-function Show-ProgressInline {
-    param (
-        [int]$Duration = 30,
-        [string]$Activity = "Running Index Maintenance"
-    )
+# --- GUI Progress Form ---
+$form = New-Object System.Windows.Forms.Form
+$form.Text = "Reindex AxDB"
+$form.Size = New-Object System.Drawing.Size(400,130)
+$form.StartPosition = "CenterScreen"
+$form.TopMost = $true
 
-    $progressID = Get-Random
-    for ($i = 1; $i -le $Duration; $i++) {
-        $percent = [math]::Round(($i / $Duration) * 100)
-        Write-Progress -Id $progressID -Activity $Activity -Status "$percent% Complete..." -PercentComplete $percent
-        Start-Sleep -Seconds 1
+$label = New-Object System.Windows.Forms.Label
+$label.Text = "Running AXPerf_IndexMaintenance..."
+$label.AutoSize = $true
+$label.Location = New-Object System.Drawing.Point(20,20)
+$form.Controls.Add($label)
+
+$progressBar = New-Object System.Windows.Forms.ProgressBar
+$progressBar.Style = 'Marquee'
+$progressBar.MarqueeAnimationSpeed = 30
+$progressBar.Size = New-Object System.Drawing.Size(340,20)
+$progressBar.Location = New-Object System.Drawing.Point(20,50)
+$form.Controls.Add($progressBar)
+
+$formShown = $false
+$job = Start-Job -ScriptBlock {
+    param($conn, $query)
+    Import-Module SqlServer -DisableNameChecking
+    Invoke-Sqlcmd -ConnectionString $conn -Query $query -QueryTimeout 3600
+} -ArgumentList $connectionString, $sqlCommand
+
+# Timer to check completion
+$timer = New-Object System.Windows.Forms.Timer
+$timer.Interval = 1000
+$timer.Add_Tick({
+    if ($job.State -ne 'Running') {
+        $timer.Stop()
+        $result = Receive-Job -Job $job -ErrorAction SilentlyContinue
+        Remove-Job $job
+
+        $returnVal = $null
+        if ($result) {
+            $returnVal = $result.'Return Value'
+            Write-Log "Procedure executed. Return Value: $returnVal"
+            [System.Windows.Forms.MessageBox]::Show("✅ Procedure completed.`nReturn Value: $returnVal", "Success", 'OK', 'Information')
+        } else {
+            Write-Log "⚠ No return value from procedure."
+            [System.Windows.Forms.MessageBox]::Show("⚠ Procedure ran but returned no value.", "Warning", 'OK', 'Warning')
+        }
+        $form.Close()
     }
-    Write-Progress -Id $progressID -Activity $Activity -Completed
-}
+})
 
-# --- Execute SQL Command ---
-try {
-    Write-Host "`n⏳ Executing index maintenance on AxDB (timeout set to 60 minutes)..." -ForegroundColor Cyan
-    Write-Log "Executing AXPerf_IndexMaintenance with 60-min timeout"
+$form.Add_Shown({ if (-not $formShown) { $formShown = $true; $timer.Start() } })
+[void]$form.ShowDialog()
 
-    Show-ProgressInline -Duration 30 -Activity "Preparing execution..."
-
-    $result = Invoke-Sqlcmd -ConnectionString $connectionString -Query $sqlCommand -QueryTimeout 3600
-
-    if ($result) {
-        $returnVal = $result.'Return Value'
-        Write-Host "`n✅ Procedure completed. Return Value: $returnVal" -ForegroundColor Green
-        Write-Log "Stored procedure executed successfully. Return Value: $returnVal"
-    } else {
-        Write-Host "`n⚠ No return value captured." -ForegroundColor Yellow
-        Write-Log "⚠ Procedure executed but returned no output."
-    }
-}
-catch {
-    Write-Warning "❌ Error executing stored procedure."
-    Write-Log "❌ ERROR: $($_.Exception.Message)"
-}
-
-Write-Log "==== Reindex-AllDatabase Script Execution Completed ===="
-
-# --- Return to menu ---
-Write-Host "`nPress Enter to return to the menu..."
-Read-Host
+Write-Log "==== Reindex-AllDatabase Script Completed ===="
+ 
