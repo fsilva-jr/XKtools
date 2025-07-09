@@ -1,136 +1,160 @@
-﻿# ============================================
-# XKTools - BacPac Cleanup Script with Logging and Error Handling
+ # ===============================
+# XKTools - Clean BacPac Utility
 # Created by: Francisco Silva
-# Contact: francisco@mtxn.com.br
-# Updated for PS 5.1 & PS 7+ by PowerShell GPT
-# ============================================
+# Updated by: PowerShell GPT
+# ===============================
 
-# Auto-elevate to admin
-If (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
-    [Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host "Restarting script as Administrator with ExecutionPolicy Bypass..." -ForegroundColor Yellow
-    $args = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
-    Start-Process powershell.exe -Verb RunAs -ArgumentList $args
+# === Hide Console Window ===
+$hwnd = Get-Process -Id $PID | ForEach-Object { $_.MainWindowHandle }
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class Win32 {
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+}
+"@
+[Win32]::ShowWindow($hwnd, 0)  # 0 = Hide, 1 = Show
+
+# === Auto-elevate to Admin ===
+if (-not ([Security.Principal.WindowsPrincipal]::new(
+    [Security.Principal.WindowsIdentity]::GetCurrent()
+)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    $script = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`""
+    Start-Process powershell.exe -Verb RunAs -ArgumentList $script -WindowStyle Hidden
     exit
 }
 
-# Setup log folder and file
+# === Add GUI support ===
+Add-Type -AssemblyName System.Windows.Forms
+
+# === Logging Setup ===
 $logFolder = "C:\Temp\XKTools\Logs"
-if (-not (Test-Path $logFolder)) {
-    New-Item -ItemType Directory -Path $logFolder | Out-Null
-}
-$logFile = Join-Path $logFolder "BacPacCleanup.log"
+if (-not (Test-Path $logFolder)) { New-Item -Path $logFolder -ItemType Directory | Out-Null }
+$logFile = Join-Path $logFolder "CleanBacPac.log"
 if (Test-Path $logFile) { Remove-Item $logFile -Force }
 
 function Write-Log {
     param (
         [string]$Message,
-        [ValidateSet('INFO', 'WARN', 'ERROR')]
-        [string]$Level = 'INFO'
+        [ValidateSet("INFO", "WARN", "ERROR")]
+        [string]$Level = "INFO"
     )
-
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    $logEntry = "$timestamp [$Level] $Message"
-    Write-Host $logEntry
-    Add-Content -Path $logFile -Value $logEntry -Encoding UTF8
+    $line = "$timestamp [$Level] $Message"
+    Add-Content -Path $logFile -Value $line
 }
 
-Write-Log -Message "======== BacPac Cleanup Script Started ========" -Level "INFO"
+Write-Log "=== BacPac Cleanup Script Started ==="
 
 try {
-    # Ensure D365FO.Tools module
+    # === Ensure D365FO.Tools module ===
     if (-not (Get-Module -ListAvailable -Name D365FO.Tools)) {
-        Write-Log -Message "Installing D365FO.Tools module..." -Level "INFO"
-        Install-Module -Name D365FO.Tools -Force -Scope CurrentUser
+        $result = [System.Windows.Forms.MessageBox]::Show(
+            "Module 'D365FO.Tools' is required. Install now?",
+            "Module Required",
+            [System.Windows.Forms.MessageBoxButtons]::YesNo,
+            [System.Windows.Forms.MessageBoxIcon]::Question
+        )
+        if ($result -eq 'Yes') {
+            try {
+                Install-Module -Name D365FO.Tools -Scope CurrentUser -Force -AllowClobber
+                Write-Log "D365FO.Tools module installed."
+            } catch {
+                Write-Log "Failed to install D365FO.Tools: $_" -Level "ERROR"
+                [System.Windows.Forms.MessageBox]::Show("Error installing D365FO.Tools.`n$_", "ERROR")
+                exit
+            }
+        } else {
+            Write-Log "User declined to install module." -Level "ERROR"
+            exit
+        }
     }
     Import-Module D365FO.Tools -Force
-    Write-Log -Message "D365FO.Tools module imported." -Level "INFO"
+    Write-Log "D365FO.Tools module imported."
 
-    # Add WinForms for dialogs
-    Add-Type -AssemblyName System.Windows.Forms
-
-    # Step 1: Select .bacpac file
+    # === Step 1: BacPac file ===
     $bacpacDialog = New-Object System.Windows.Forms.OpenFileDialog
-    $bacpacDialog.Title = "Select the .bacpac File"
+    $bacpacDialog.Title = "Select the BacPac File"
     $bacpacDialog.Filter = "BACPAC Files (*.bacpac)|*.bacpac"
-
     if ($bacpacDialog.ShowDialog() -ne 'OK') {
-        Write-Log -Message "No .bacpac file selected. Exiting..." -Level "WARN"
+        Write-Log "No BacPac selected." -Level "WARN"
         exit
     }
     $bacpacFile = $bacpacDialog.FileName
-    Write-Log -Message "Selected .bacpac: $bacpacFile" -Level "INFO"
+    Write-Log "Selected BacPac: $bacpacFile"
 
-    # Step 2: Select TXT file
+    # === Step 2: TXT with table names ===
     $txtDialog = New-Object System.Windows.Forms.OpenFileDialog
-    $txtDialog.Title = "Select the TXT File with Tables to Clear"
-    $txtDialog.Filter = "Text Files (*.txt)|*.txt"
-
+    $txtDialog.Title = "Select TXT with Table Names to Clear"
+    $txtDialog.Filter = "TXT Files (*.txt)|*.txt"
     if ($txtDialog.ShowDialog() -ne 'OK') {
-        Write-Log -Message "No TXT file selected. Exiting..." -Level "WARN"
+        Write-Log "No TXT file selected." -Level "WARN"
         exit
     }
     $txtFile = $txtDialog.FileName
-    Write-Log -Message "Selected table list TXT: $txtFile" -Level "INFO"
+    Write-Log "Selected TXT: $txtFile"
 
-    # Step 3: Select Output Folder
+    # === Step 3: Output Folder ===
     $folderDialog = New-Object System.Windows.Forms.FolderBrowserDialog
-    $folderDialog.Description = "Select Output Folder for the Modified Bacpac"
-
+    $folderDialog.Description = "Select Output Folder for Modified BacPac"
     if ($folderDialog.ShowDialog() -ne 'OK') {
-        Write-Log -Message "No output folder selected. Exiting..." -Level "WARN"
+        Write-Log "No output folder selected." -Level "WARN"
         exit
     }
     $outputFolder = $folderDialog.SelectedPath
-    Write-Log -Message "Selected output folder: $outputFolder" -Level "INFO"
+    Write-Log "Output folder: $outputFolder"
 
-    # Step 4: Build output path
-    $originalFileName = [System.IO.Path]::GetFileNameWithoutExtension($bacpacFile)
-    $outputBacpac = Join-Path $outputFolder "${originalFileName}_Modified.bacpac"
-    Write-Log -Message "Output BacPac path: $outputBacpac" -Level "INFO"
+    # === Step 4: Define Output File ===
+    $baseName = [System.IO.Path]::GetFileNameWithoutExtension($bacpacFile)
+    $outputFile = Join-Path $outputFolder "${baseName}_Modified.bacpac"
+    Write-Log "Output BacPac: $outputFile"
 
-    # Step 5: Check for existing output file
-    if (Test-Path $outputBacpac) {
-        $msgBox = [System.Windows.Forms.MessageBox]::Show(
-            "The file `"$outputBacpac`" already exists.`nDo you want to overwrite it?",
-            "Overwrite Confirmation",
+    # === Step 5: File Overwrite Confirm ===
+    if (Test-Path $outputFile) {
+        $overwrite = [System.Windows.Forms.MessageBox]::Show(
+            "The file already exists:`n$outputFile`nOverwrite?",
+            "Confirm Overwrite",
             [System.Windows.Forms.MessageBoxButtons]::YesNo,
             [System.Windows.Forms.MessageBoxIcon]::Warning
         )
-
-        if ($msgBox -ne [System.Windows.Forms.DialogResult]::Yes) {
-            Write-Log -Message "User chose not to overwrite existing file. Exiting..." -Level "WARN"
+        if ($overwrite -ne "Yes") {
+            Write-Log "User canceled overwrite." -Level "WARN"
             exit
-        }
-        else {
-            Write-Log -Message "User confirmed overwrite. Deleting existing file." -Level "INFO"
-            Remove-Item $outputBacpac -Force
+        } else {
+            Remove-Item $outputFile -Force
+            Write-Log "Old file removed."
         }
     }
 
-    # Step 6: Read table list
-    $tablesToClear = Get-Content $txtFile | Where-Object { $_.Trim() -ne "" }
-    if (-not $tablesToClear) {
-        Write-Log -Message "TXT file is empty. Exiting..." -Level "ERROR"
+    # === Step 6: Read TXT contents ===
+    $tables = Get-Content $txtFile | Where-Object { $_.Trim() -ne "" }
+    if (-not $tables) {
+        Write-Log "TXT is empty or invalid." -Level "ERROR"
+        [System.Windows.Forms.MessageBox]::Show("The TXT file is empty. Aborting.", "Invalid TXT", "OK", "Error")
         exit
     }
-    Write-Log -Message "Tables to clear:" -Level "INFO"
-    $tablesToClear | ForEach-Object { Write-Log -Message " - $_" -Level "INFO" }
+    Write-Log "Tables to clear:"
+    $tables | ForEach-Object { Write-Log " - $_" }
 
-    # Step 7: Execute Clear-D365TableDataFromBacPac
-    Write-Log -Message "Starting Clear-D365TableDataFromBacPac execution..." -Level "INFO"
+    # === Step 7: Run Clear-D365TableDataFromBacPac ===
+    Write-Log "Starting Clear-D365TableDataFromBacPac..."
     try {
-        Clear-D365TableDataFromBacPac -Path $bacpacFile -Table $tablesToClear -OutputPath $outputBacpac -Verbose 4>&1 | ForEach-Object { Write-Log -Message $_ -Level "INFO" }
-        Write-Log -Message "✅ Modified BacPac created at: $outputBacpac" -Level "INFO"
-    }
-    catch {
-        Write-Log -Message "❌ Error during Clear-D365TableDataFromBacPac execution: $_" -Level "ERROR"
+        Clear-D365TableDataFromBacPac -Path $bacpacFile -Table $tables -OutputPath $outputFile -Verbose 4>&1 | ForEach-Object {
+            Write-Log $_
+        }
+        Write-Log "✅ Cleaned BacPac saved at: $outputFile"
+        [System.Windows.Forms.MessageBox]::Show("✅ Modified BacPac created successfully!`nPath: $outputFile", "Success", "OK", "Information")
+    } catch {
+        Write-Log "ERROR running Clear-D365TableDataFromBacPac: $_" -Level "ERROR"
+        [System.Windows.Forms.MessageBox]::Show("❌ Failed to process BacPac.`n$_", "ERROR", "OK", "Error")
         exit
     }
-}
-catch {
-    Write-Log -Message "❌ UNEXPECTED ERROR: $_" -Level "ERROR"
+
+} catch {
+    Write-Log "❌ UNHANDLED ERROR: $_" -Level "ERROR"
+    [System.Windows.Forms.MessageBox]::Show("Unexpected error occurred.`n$_", "FATAL ERROR", "OK", "Error")
     exit
 }
 
-Write-Log -Message "======== Script Finished Successfully ========" -Level "INFO"
+Write-Log "=== Script Finished Successfully ==="
+ 
