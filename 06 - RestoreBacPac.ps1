@@ -1,20 +1,17 @@
-﻿# ============================================
-# XKTools - Restore BacPac with GUI Dialogs and Logging
+ # ============================================
+# XKTools - Restore BacPac with Full GUI
 # Created by: Francisco Silva
-# Contact: francisco@mtxn.com.br
-# Updated for PS 5.1 & PS 7+ by PowerShell GPT
+# Updated by: PowerShell GPT
 # ============================================
 
-# Auto-elevate to admin
+# Auto-elevate
 If (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
     [Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host "Restarting script as Administrator with ExecutionPolicy Bypass..." -ForegroundColor Yellow
     $args = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
     Start-Process powershell.exe -Verb RunAs -ArgumentList $args
     exit
 }
 
-# Load WinForms assembly for dialogs
 Add-Type -AssemblyName System.Windows.Forms
 
 # Setup log
@@ -32,92 +29,111 @@ function Write-Log {
     )
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logEntry = "$timestamp [$Level] $Message"
-    Write-Host $logEntry
     Add-Content -Path $logFile -Value $logEntry -Encoding UTF8
 }
 
-Write-Log -Message "======== BacPac Restore Script Started ========" -Level "INFO"
+Write-Log -Message "======== Restore BacPac Script Started ========"
 
-# Ask user to select BacPac file
+# Select BacPac file
 $bacpacDialog = New-Object System.Windows.Forms.OpenFileDialog
-$bacpacDialog.Title = "Select the BacPac File to Restore"
+$bacpacDialog.Title = "Select the BacPac File"
 $bacpacDialog.Filter = "BacPac Files (*.bacpac)|*.bacpac"
 
 if ($bacpacDialog.ShowDialog() -ne 'OK') {
-    Write-Log -Message "User canceled BacPac file selection." -Level "WARN"
-    Write-Host "No BacPac file selected. Aborting." -ForegroundColor Red
-    exit 1
+    [System.Windows.Forms.MessageBox]::Show("No file selected. Operation canceled.","Canceled",[System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Warning)
+    Write-Log -Message "User canceled BacPac selection." -Level "WARN"
+    exit
 }
-$bacpacFullPath = $bacpacDialog.FileName
-Write-Log -Message "User selected BacPac file: $bacpacFullPath" -Level "INFO"
+$bacpacPath = $bacpacDialog.FileName
+Write-Log -Message "Selected BacPac: $bacpacPath"
 
-# Extract folder and filename
-$sourceFolder = [System.IO.Path]::GetDirectoryName($bacpacFullPath)
-$bacpacFileName = [System.IO.Path]::GetFileName($bacpacFullPath)
+# Prompt for DB Name
+$form = New-Object System.Windows.Forms.Form
+$form.Text = "Target Database Name"
+$form.Size = New-Object System.Drawing.Size(350,150)
+$form.StartPosition = "CenterScreen"
 
-# Ask for target database name
-$targetDbName = Read-Host "Enter the target database name for the restore"
-if ([string]::IsNullOrWhiteSpace($targetDbName)) {
-    Write-Log -Message "No target database name provided. Aborting." -Level "ERROR"
-    Write-Host "No target database name provided. Aborting." -ForegroundColor Red
-    exit 1
+$label = New-Object System.Windows.Forms.Label
+$label.Text = "Enter the target database name:"
+$label.AutoSize = $true
+$label.Location = New-Object System.Drawing.Point(10,20)
+$form.Controls.Add($label)
+
+$textBox = New-Object System.Windows.Forms.TextBox
+$textBox.Size = New-Object System.Drawing.Size(300,20)
+$textBox.Location = New-Object System.Drawing.Point(10,45)
+$form.Controls.Add($textBox)
+
+$okButton = New-Object System.Windows.Forms.Button
+$okButton.Text = "OK"
+$okButton.Location = New-Object System.Drawing.Point(110,80)
+$okButton.Add_Click({ $form.Tag = $textBox.Text; $form.Close() })
+$form.Controls.Add($okButton)
+
+$form.ShowDialog() | Out-Null
+$targetDb = $form.Tag
+
+if ([string]::IsNullOrWhiteSpace($targetDb)) {
+    [System.Windows.Forms.MessageBox]::Show("No database name provided. Aborting.","Error",[System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Error)
+    Write-Log -Message "No target DB name entered." -Level "ERROR"
+    exit
 }
-Write-Log -Message "Target database name: $targetDbName" -Level "INFO"
+Write-Log -Message "Target DB Name: $targetDb"
 
-# Confirm restore
-$confirmation = [System.Windows.Forms.MessageBox]::Show(
-    "Do you want to proceed with restoring:`n`n$bacpacFullPath`n`nTo database:`n$targetDbName?",
-    "Confirm Restore",
-    [System.Windows.Forms.MessageBoxButtons]::YesNo,
-    [System.Windows.Forms.MessageBoxIcon]::Question
-)
-
-if ($confirmation -ne [System.Windows.Forms.DialogResult]::Yes) {
-    Write-Log -Message "User canceled the restore confirmation." -Level "WARN"
-    Write-Host "Restore canceled by user." -ForegroundColor Yellow
-    exit 0
+# Confirm
+$confirm = [System.Windows.Forms.MessageBox]::Show("Confirm restore of `"$bacpacPath`" to database `"$targetDb`"?","Confirm",[System.Windows.Forms.MessageBoxButtons]::YesNo,[System.Windows.Forms.MessageBoxIcon]::Question)
+if ($confirm -ne [System.Windows.Forms.DialogResult]::Yes) {
+    Write-Log -Message "User aborted on confirmation dialog." -Level "WARN"
+    exit
 }
-Write-Log -Message "User confirmed the restore operation." -Level "INFO"
 
-# Verify sqlpackage.exe existence
+# Check sqlpackage
 $sqlPackageExe = "C:\Temp\sqlpackage\sqlpackage.exe"
 if (-not (Test-Path $sqlPackageExe)) {
-    Write-Log -Message "sqlpackage.exe not found at: $sqlPackageExe" -Level "ERROR"
-    Write-Host "sqlpackage.exe not found at: $sqlPackageExe" -ForegroundColor Red
-    exit 1
+    [System.Windows.Forms.MessageBox]::Show("sqlpackage.exe not found at $sqlPackageExe","Missing Tool",[System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Error)
+    Write-Log -Message "sqlpackage.exe not found at $sqlPackageExe" -Level "ERROR"
+    exit
 }
-Write-Log -Message "sqlpackage.exe found at: $sqlPackageExe" -Level "INFO"
+Write-Log -Message "sqlpackage.exe located."
 
-# Build target connection string
-$targetConnString = "Server=localhost;Initial Catalog=$targetDbName;Integrated Security=True;TrustServerCertificate=True"
-Write-Log -Message "Target connection string built for DB: $targetDbName" -Level "INFO"
+# Build args
+$targetConn = "Server=localhost;Initial Catalog=$targetDb;Integrated Security=True;TrustServerCertificate=True"
+$sqlArgs = "/a:Import /sf:`"$bacpacPath`" /TargetConnectionString:`"$targetConn`" /p:CommandTimeout=12000"
 
-# Run SQLPackage Import
-Write-Host "`nStarting BacPac restore..." -ForegroundColor Cyan
-Write-Log -Message "Starting SQLPackage Import..." -Level "INFO"
-
-$restoreCommand = "& `"$sqlPackageExe`" /a:Import /sf:`"$bacpacFullPath`" /TargetConnectionString:`"$targetConnString`" /p:CommandTimeout=12000 /p:DisableIndexesForDataPhase=False"
-
+# Run sqlpackage
 try {
-    Invoke-Expression $restoreCommand
-    Write-Log -Message "SQLPackage Import completed successfully." -Level "INFO"
-    Write-Host "`nRestore completed successfully." -ForegroundColor Green
+    Write-Log -Message "Executing sqlpackage.exe for restore..."
+    $proc = Start-Process -FilePath $sqlPackageExe -ArgumentList $sqlArgs -Wait -NoNewWindow -PassThru
+    if ($proc.ExitCode -eq 0) {
+        Write-Log -Message "sqlpackage.exe completed successfully."
+        $success = $true
+    } else {
+        Write-Log -Message "sqlpackage.exe exited with code $($proc.ExitCode)" -Level "ERROR"
+        $success = $false
+    }
 } catch {
-    Write-Log -Message ("SQLPackage Import failed: " + $_.Exception.Message) -Level "ERROR"
-    Write-Host "Restore failed: $($_.Exception.Message)" -ForegroundColor Red
-    exit 1
+    Write-Log -Message "Exception during sqlpackage execution: $_" -Level "ERROR"
+    $success = $false
 }
 
-# Set Recovery Model to SIMPLE
-Write-Log -Message "Setting database recovery model to SIMPLE..." -Level "INFO"
-try {
-    $sql = "ALTER DATABASE [$targetDbName] SET RECOVERY SIMPLE;"
-    Invoke-Sqlcmd -ServerInstance "localhost" -Query $sql -ErrorAction Stop
-    Write-Log -Message "Database recovery model set to SIMPLE successfully." -Level "INFO"
-    Write-Host "Database recovery model set to SIMPLE." -ForegroundColor Green
-} catch {
-    Write-Log -Message ("Failed to set recovery model: " + $_.Exception.Message) -Level "ERROR"
-    Write-Host "Failed to set recovery model: $($_.Exception.Message)" -ForegroundColor Red
+# Set recovery model
+if ($success) {
+    try {
+        Write-Log -Message "Setting recovery model to SIMPLE..."
+        $sql = "ALTER DATABASE [$targetDb] SET RECOVERY SIMPLE;"
+        Invoke-Sqlcmd -ServerInstance "localhost" -Query $sql -ErrorAction Stop
+        Write-Log -Message "Recovery model changed successfully."
+    } catch {
+        Write-Log -Message "Failed to set recovery model: $_" -Level "WARN"
+    }
 }
 
-Write-Log -Message "======== Script Finished Successfully ========" -Level "INFO"
+# Final popup
+if ($success) {
+    [System.Windows.Forms.MessageBox]::Show("✔️ BacPac restored successfully to $targetDb.","Success",[System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Information)
+} else {
+    [System.Windows.Forms.MessageBox]::Show("❌ BacPac restore failed. See log for details.","Error",[System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Error)
+}
+
+Write-Log -Message "======== Restore BacPac Script Finished ========"
+ 
