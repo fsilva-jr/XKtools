@@ -1,4 +1,4 @@
- # ============================================
+# ============================================
 # XKTools - Restore BacPac with GUI Dialogs and Logging
 # Created by: Francisco Silva
 # Contact: francisco@mtxn.com.br
@@ -121,4 +121,3 @@ try {
 }
 
 Write-Log -Message "======== Script Finished Successfully ========" -Level "INFO"
- 
