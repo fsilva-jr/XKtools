@@ -1,10 +1,3 @@
-# ============================================
-# Stop Services Script - Versão com Logging Avançado
-# Created by: Francisco Silva
-# Contact: francisco@mtxn.com.br
-# Updated for PS 5.1 & PS 7+ by PowerShell GPT
-# ============================================
-
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Security
@@ -262,4 +255,3 @@ try {
 }
 
 Write-Log "=== Script execution completed ==="
- 
