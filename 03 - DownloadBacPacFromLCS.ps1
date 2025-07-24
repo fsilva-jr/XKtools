@@ -1,29 +1,28 @@
- # ============================================
-# XKTools - GUI BacPac Download via AzCopy
+# ============================================
+# XKTools - Download BacPac from LCS with Folder Dialog and Logging
 # Created by: Francisco Silva
-# Updated by: PowerShell GPT
+# Contact: francisco@mtxn.com.br
+# Updated for PS 5.1 & PS 7+ by PowerShell GPT
 # ============================================
 
-# === Auto-elevate and hide console ===
-if (-not ([Security.Principal.WindowsPrincipal]::new(
-    [Security.Principal.WindowsIdentity]::GetCurrent()
-)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    $args = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`""
-    Start-Process -FilePath "powershell.exe" -Verb RunAs -ArgumentList $args -WindowStyle Hidden
+# Auto-elevate to admin
+If (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
+    [Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Write-Host "Restarting script as Administrator with ExecutionPolicy Bypass..." -ForegroundColor Yellow
+    $args = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
+    Start-Process powershell.exe -Verb RunAs -ArgumentList $args
     exit
 }
 
-# === Load UI Assemblies ===
+# Load WinForms for FolderBrowserDialog
 Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
 
-# === Logging Setup ===
-$scriptName = "DownloadBacPacFromLCS"
+# Setup log
 $logFolder = "C:\Temp\XKTools\Logs"
 if (-not (Test-Path $logFolder)) {
-    New-Item -ItemType Directory -Path $logFolder -Force | Out-Null
+    New-Item -ItemType Directory -Path $logFolder | Out-Null
 }
-$logFile = Join-Path $logFolder "$scriptName.log"
+$logFile = Join-Path $logFolder "DownloadBacPacFromLCS.log"
 
 function Write-Log {
     param (
@@ -32,130 +31,82 @@ function Write-Log {
         [string]$Level = 'INFO'
     )
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    Add-Content -Path $logFile -Value "$timestamp [$Level] $Message" -Encoding UTF8
+    $logEntry = "$timestamp [$Level] $Message"
+    Write-Host $logEntry
+    Add-Content -Path $logFile -Value $logEntry -Encoding UTF8
 }
 
-function Show-InputBox($message, $title) {
-    $form = New-Object Windows.Forms.Form
-    $form.Text = $title
-    $form.Size = New-Object Drawing.Size(420,150)
-    $form.StartPosition = 'CenterScreen'
+Write-Log -Message "======== Download BacPac Script Started ========" -Level "INFO"
 
-    $label = New-Object Windows.Forms.Label
-    $label.Text = $message
-    $label.Size = New-Object Drawing.Size(380,20)
-    $label.Location = New-Object Drawing.Point(10,10)
-    $form.Controls.Add($label)
-
-    $textbox = New-Object Windows.Forms.TextBox
-    $textbox.Size = New-Object Drawing.Size(380,25)
-    $textbox.Location = New-Object Drawing.Point(10,35)
-    $form.Controls.Add($textbox)
-
-    $okButton = New-Object Windows.Forms.Button
-    $okButton.Text = "OK"
-    $okButton.Location = New-Object Drawing.Point(300,70)
-    $okButton.Add_Click({ $form.Tag = $textbox.Text; $form.Close() })
-    $form.Controls.Add($okButton)
-
-    $form.TopMost = $true
-    $form.ShowDialog() | Out-Null
-    return $form.Tag
-}
-
-function Show-MessageBox($msg, $title="XKTools", $icon="Information") {
-    [System.Windows.Forms.MessageBox]::Show($msg, $title, 'OK', $icon) | Out-Null
-}
-
-function Confirm-Overwrite($path) {
-    $msg = "File already exists:`n$path`nOverwrite?"
-    $result = [System.Windows.Forms.MessageBox]::Show($msg, "Overwrite?", 'YesNo', 'Question')
-    return $result -eq 'Yes'
-}
-
-Write-Log "======== BacPac Download Script Started ========"
-
-# === Step 1: Ask for download URL ===
-$url = Show-InputBox -message "Enter the BacPac download URL:" -title "Download URL"
-if (-not $url) {
-    Write-Log "No download URL provided. Aborting." -Level "ERROR"
-    Show-MessageBox "Download canceled. No URL provided." "Error" "Error"
+# Prompt user for download URL
+$downloadUrl = Read-Host "Enter the download URL for the BacPac file"
+if ([string]::IsNullOrWhiteSpace($downloadUrl)) {
+    Write-Log -Message "No download URL provided. Aborting." -Level "ERROR"
+    Write-Host "No download URL provided. Aborting." -ForegroundColor Red
     exit 1
 }
-Write-Log "Download URL: $url"
+Write-Log -Message "User provided download URL: $downloadUrl" -Level "INFO"
 
-# === Step 2: Folder selection ===
+# Open FolderBrowserDialog for target folder
 $folderDialog = New-Object System.Windows.Forms.FolderBrowserDialog
-$folderDialog.Description = "Choose destination folder for .bacpac"
+$folderDialog.Description = "Select the folder where the BacPac will be saved"
+
 if ($folderDialog.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK) {
-    Write-Log "Folder selection canceled by user." -Level "WARN"
-    Show-MessageBox "Download canceled. No folder selected." "Canceled" "Warning"
+    Write-Log -Message "User canceled folder selection. Exiting." -Level "WARN"
+    Write-Host "No target folder selected. Aborting." -ForegroundColor Red
     exit 1
 }
 $targetFolder = $folderDialog.SelectedPath
-Write-Log "Destination folder: $targetFolder"
+Write-Log -Message "User selected target folder: $targetFolder" -Level "INFO"
 
-# === Step 3: Filename input ===
-$fileName = Show-InputBox -message "Enter the file name (without .bacpac):" -title "Filename"
-if (-not $fileName) {
-    Write-Log "No filename provided. Aborting." -Level "ERROR"
-    Show-MessageBox "Download canceled. No filename provided." "Error" "Error"
+# Ask user for filename (force .bacpac)
+$fileName = Read-Host "Enter the desired filename (without extension)"
+if ([string]::IsNullOrWhiteSpace($fileName)) {
+    Write-Log -Message "No filename provided. Aborting." -Level "ERROR"
+    Write-Host "No filename provided. Aborting." -ForegroundColor Red
     exit 1
 }
-$fileName = "$([IO.Path]::GetFileNameWithoutExtension($fileName)).bacpac"
-$targetPath = Join-Path $targetFolder $fileName
-Write-Log "Final file path: $targetPath"
 
-# === Step 4: Check for existing file ===
-if (Test-Path $targetPath) {
-    if (-not (Confirm-Overwrite -path $targetPath)) {
-        Write-Log "User declined to overwrite existing file. Exiting." -Level "WARN"
-        Show-MessageBox "Download canceled by user." "Canceled" "Warning"
+$fileBaseName = [System.IO.Path]::GetFileNameWithoutExtension($fileName)
+$fileNameFinal = "$fileBaseName.bacpac"
+$targetFilePath = Join-Path $targetFolder $fileNameFinal
+Write-Log -Message "Final target file path: $targetFilePath" -Level "INFO"
+
+# Check for existing file
+if (Test-Path $targetFilePath) {
+    $overwrite = Read-Host "File '$targetFilePath' already exists. Overwrite? (Y/N)"
+    if ($overwrite.ToUpper() -ne "Y") {
+        Write-Log -Message "User chose not to overwrite existing file. Exiting." -Level "WARN"
+        Write-Host "Download canceled by user." -ForegroundColor Yellow
         exit 0
+    } else {
+        Write-Log -Message "User chose to overwrite existing file: $targetFilePath" -Level "INFO"
     }
-    Write-Log "User confirmed overwrite of $targetPath"
 }
 
-# === Step 5: Check AzCopy existence ===
+# Verify azcopy.exe existence
 $azcopyExe = "C:\Temp\azcopy.exe"
 if (-not (Test-Path $azcopyExe)) {
-    Write-Log "azcopy.exe not found at $azcopyExe" -Level "ERROR"
-    Show-MessageBox "AzCopy not found at:`n$azcopyExe" "Missing Tool" "Error"
+    Write-Log -Message "azcopy.exe not found at: $azcopyExe" -Level "ERROR"
+    Write-Host "azcopy.exe not found at: $azcopyExe" -ForegroundColor Red
     exit 1
 }
-Write-Log "AzCopy found."
+Write-Log -Message "azcopy.exe found at: $azcopyExe" -Level "INFO"
 
-# === Step 6: Download with AzCopy ===
-Write-Log "Starting AzCopy download..."
-$progressForm = New-Object Windows.Forms.Form
-$progressForm.Text = "Downloading BacPac..."
-$progressForm.Size = New-Object Drawing.Size(350, 100)
-$progressForm.StartPosition = "CenterScreen"
-$progressForm.TopMost = $true
+# Run AzCopy download
+Write-Host "`nStarting download using AzCopy..." -ForegroundColor Cyan
+Write-Log -Message "Starting AzCopy download: $downloadUrl -> $targetFilePath" -Level "INFO"
 
-$label = New-Object Windows.Forms.Label
-$label.Text = "Downloading... Please wait."
-$label.AutoSize = $true
-$label.Location = New-Object Drawing.Point(20,20)
-$progressForm.Controls.Add($label)
+$azcopyCommand = "& `"$azcopyExe`" copy `"$downloadUrl`" `"$targetFilePath`" --recursive=true"
 
-$progressBar = New-Object Windows.Forms.ProgressBar
-$progressBar.Style = "Marquee"
-$progressBar.MarqueeAnimationSpeed = 30
-$progressBar.Location = New-Object Drawing.Point(20, 45)
-$progressBar.Size = New-Object Drawing.Size(300, 20)
-$progressForm.Controls.Add($progressBar)
+try {
+    Invoke-Expression $azcopyCommand
+    Write-Host "`n✔️ Download completed. File saved to: $targetFilePath" -ForegroundColor Green
+    Write-Log -Message "Download completed successfully: $targetFilePath" -Level "INFO"
+} catch {
+    Write-Log -Message ("AzCopy failed: " + $_.Exception.Message) -Level "ERROR"
+    Write-Host "❌ AzCopy failed: $($_.Exception.Message)" -ForegroundColor Red
+    exit 1
+}
 
-$progressForm.Show()
-
-Start-Job -ScriptBlock {
-    param($azcopyExe, $url, $targetPath)
-    & $azcopyExe copy $url $targetPath --recursive=true | Out-Null
-} -ArgumentList $azcopyExe, $url, $targetPath | Wait-Job | Receive-Job | Out-Null
-
-$progressForm.Close()
-Write-Log "Download completed: $targetPath"
-
-Show-MessageBox "✔️ BacPac downloaded successfully to:`n$targetPath" "Download Complete"
-Write-Log "======== Script Finished ========"
- 
+Write-Log -Message "======== Script Finished ========" -Level "INFO"
