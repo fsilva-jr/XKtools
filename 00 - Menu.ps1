@@ -1,5 +1,5 @@
 # ============================================
-# XKTools Main Menu (Simplified + PS Upgrade Safe)
+# XKTools Main Menu (Improved & PS7 Safe)
 # Created by: Francisco Silva
 # Updated by: PowerShell GPT
 # ============================================
@@ -12,19 +12,18 @@ if ($psMajor -lt 7) {
     $upgradeChoice = Read-Host "Do you want to upgrade PowerShell now? (Y/N)"
 
     if ($upgradeChoice -match '^[Yy]$') {
-
         if (Get-Command winget -ErrorAction SilentlyContinue) {
             try {
                 Write-Host "Upgrading PowerShell using winget..." -ForegroundColor Cyan
                 Start-Process winget -ArgumentList "install --id Microsoft.Powershell --source winget --silent" -Wait -NoNewWindow
-                Write-Host "âœ… PowerShell upgrade initiated. Please restart your session to use the new version." -ForegroundColor Green
+                Write-Host "✅ PowerShell upgrade initiated. Please restart your session to use the new version." -ForegroundColor Green
                 exit
             } catch {
-                Write-Host "âš  Winget failed to upgrade PowerShell." -ForegroundColor Red
+                Write-Host "⚠ Winget failed to upgrade PowerShell." -ForegroundColor Red
                 Start-Process "https://aka.ms/powershell"
             }
         } else {
-            Write-Host "âš  Winget is not installed on this system." -ForegroundColor Yellow
+            Write-Host "⚠ Winget is not installed on this system." -ForegroundColor Yellow
             $manualChoice = Read-Host "Do you want to open the PowerShell download page now? (Y/N)"
             if ($manualChoice -match '^[Yy]$') {
                 Start-Process "https://aka.ms/powershell"
@@ -36,10 +35,17 @@ if ($psMajor -lt 7) {
     }
 }
 
+# --- Ensure script path is defined ---
+if (-not $PSCommandPath) {
+    Write-Host "Error: Script path is undefined. Please save and run this script from a file." -ForegroundColor Red
+    exit 1
+}
+
 # --- Auto-elevate ---
 if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
     [Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
+    $escapedPath = $PSCommandPath -replace '"', '""'
+    Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$escapedPath`""
     exit
 }
 
@@ -50,6 +56,11 @@ if (-not (Test-Path $logFolder)) {
     New-Item -ItemType Directory -Path $logFolder | Out-Null
 }
 $logFile = Join-Path $logFolder "XKToolsMenu.log"
+
+# --- Optional log rotation (5MB limit) ---
+if (Test-Path $logFile -and (Get-Item $logFile).Length -gt 5MB) {
+    Rename-Item -Path $logFile -NewName ("$logFile.old_" + (Get-Date -Format "yyyyMMdd_HHmmss"))
+}
 
 function Write-Log {
     param ([string]$Message)
@@ -72,6 +83,8 @@ $scriptMap = @{
     "9"  = "09 - Sync Database.ps1"
     "10" = "10 - Deploy reports.ps1"
     "11" = "11 - Reindex All Database.ps1"
+    "12" = "12 - UpdateWebAndWifConfig.ps1"
+    "13" = "13 - InstallNotepadMMandPostman.ps1"
 }
 
 $executedOptions = @()
@@ -90,9 +103,9 @@ do {
     Write-Host "  X - Exit" -ForegroundColor Red
     Write-Host "======================================="
 
-    $choice = Read-Host "Enter an option number (from 1 to 11) or X to exit"
+    $choice = Read-Host "Enter an option number (from 1 to 13) or X to exit"
 
-    if ($choice -eq "X" -or $choice -eq "x") {
+    if ($choice -match '^[Xx]$') {
         Write-Host "`nExiting XKTools. Goodbye!" -ForegroundColor Cyan
         Write-Log "==== XKTools Menu Execution Ended ===="
         break
@@ -105,7 +118,7 @@ do {
     }
 
     $selectedScript = Join-Path $scriptDir $scriptMap[$choice]
-    if (Test-Path $selectedScript) {
+    if (Test-Path -LiteralPath $selectedScript) {
         Write-Log "Running: $selectedScript"
         Write-Host "`nRunning script: $selectedScript" -ForegroundColor Yellow
 
@@ -124,7 +137,7 @@ do {
         Write-Log "File not found: $selectedScript"
     }
 
-    Write-Host "`nPress Enter to return to the menu..."
-    Read-Host
+    Write-Host ""
+    Pause
 
 } while ($true)
