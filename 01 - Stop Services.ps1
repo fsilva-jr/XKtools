@@ -1,11 +1,9 @@
 # ============================================
-# Stop Services Script - Versão com Logging Avançado
+# Stop Services Script - Simple ASCII Version
 # Created by: Francisco Silva
-# Contact: francisco@mtxn.com.br
-# Updated for PS 5.1 & PS 7+ by PowerShell GPT
 # ============================================
 
-# Auto-elevate to admin if needed
+# Auto-elevate to admin
 If (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
     [Security.Principal.WindowsBuiltInRole]::Administrator)) {
     $args = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
@@ -15,7 +13,7 @@ If (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
 
 # Setup
 $scriptName = "StopServices"
-$scriptVersion = "1.1.0"
+$scriptVersion = "1.2.0"
 $logFolder = "C:\Temp\XKTools\Logs"
 
 if (-not (Test-Path $logFolder)) {
@@ -24,7 +22,7 @@ if (-not (Test-Path $logFolder)) {
 
 $logFile = Join-Path $logFolder "$scriptName.log"
 
-# Optional log rotation (if over 5MB)
+# Optional log rotation (5 MB max)
 $maxLogSizeMB = 5
 if ((Test-Path $logFile) -and ((Get-Item $logFile).Length -gt ($maxLogSizeMB * 1MB))) {
     $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
@@ -40,7 +38,7 @@ function Write-Log {
 
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logEntry = "$timestamp [$Level] $Message"
-    Add-Content -Path $logFile -Value $logEntry -Encoding UTF8NoBOM
+    Add-Content -Path $logFile -Value $logEntry -Encoding UTF8
 }
 
 Write-Log -Message "======== Stop Services Script Started ========" -Level "INFO"
@@ -61,39 +59,41 @@ foreach ($svc in $services) {
     $serviceObj = Get-Service -Name $svc -ErrorAction SilentlyContinue
 
     if ($null -eq $serviceObj) {
-        Write-Warning "⚠️ Service not found: $svc"
+        Write-Host "Service not found: $svc"
         Write-Log -Message "WARN: Service not found - $svc" -Level "WARN"
         continue
     }
 
     try {
         if ($serviceObj.Status -ne 'Stopped') {
-            Write-Host "Stopping service: $svc" -ForegroundColor Yellow
+            Write-Host "Stopping service: $svc"
             Write-Log -Message "Stopping service: $svc" -Level "INFO"
 
             Stop-Service -Name $svc -Force -ErrorAction Stop
 
-            Write-Log -Message "SUCCESS: Service stopped - $svc" -Level "INFO"
+            Write-Log -Message "Service stopped successfully - $svc" -Level "INFO"
         } else {
             Write-Log -Message "Service already stopped: $svc" -Level "WARN"
         }
     }
     catch {
         $failedServices += $svc
-        Write-Warning "❌ Failed to stop service: $svc"
+        Write-Host "Failed to stop service: $svc"
         Write-Log -Message "ERROR stopping service: $svc - $_" -Level "ERROR"
     }
 }
 
 # Final summary
 if ($failedServices.Count -gt 0) {
-    Write-Host "`nSome services failed to stop:" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Some services failed to stop:"
     foreach ($svc in $failedServices) {
-        Write-Host " - $svc" -ForegroundColor Red
+        Write-Host " - $svc"
     }
     Write-Log -Message "Some services failed to stop." -Level "ERROR"
 } else {
-    Write-Host "`n✔️ All services stopped successfully." -ForegroundColor Green
+    Write-Host ""
+    Write-Host "All services stopped successfully."
     Write-Log -Message "All services stopped successfully." -Level "INFO"
 }
 
