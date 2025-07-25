@@ -1,84 +1,49 @@
-# --- Check and elevate to admin ---
-if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
-    [Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host "Relaunching as admin..."
-    Start-Process powershell "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
-    exit
-}
+# --- Function: Install Postman using Winget or fallback ---
+function Install-Postman {
+    $postmanExe = "$env:TEMP\Postman-x64-Setup.exe"
+    $postmanUrl = "https://dl.pstmn.io/download/latest/win64"
 
-# --- Set common temp directory ---
-$tempDir = "$env:TEMP\AppInstall"
-if (-not (Test-Path $tempDir)) {
-    New-Item -ItemType Directory -Path $tempDir | Out-Null
-}
+    Write-Host "`n=== Installing Postman ===" -ForegroundColor Cyan
 
-# --- Function to check Notepad++ installation ---
-function Test-NotepadPPInstalled {
-    $regPaths = @(
-        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
-        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
-    )
-    foreach ($path in $regPaths) {
-        Get-ChildItem $path | ForEach-Object {
-            $displayName = ($_ | Get-ItemProperty).DisplayName
-            if ($displayName -like "Notepad++*") {
-                return $true
+    # Try Winget first
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        try {
+            Write-Host "Winget detected. Installing Postman via Winget..." -ForegroundColor Cyan
+            $wingetArgs = "install --id Postman.Postman --source winget --accept-package-agreements --accept-source-agreements --silent"
+            $winget = Start-Process -FilePath "winget" -ArgumentList $wingetArgs -Wait -PassThru
+
+            if ($winget.ExitCode -eq 0) {
+                Write-Host "✅ Postman installed via Winget." -ForegroundColor Green
+                return
+            } else {
+                Write-Host "⚠ Winget returned non-zero exit code ($($winget.ExitCode)). Will use fallback." -ForegroundColor Yellow
             }
+        } catch {
+            Write-Host "⚠ Winget failed: $($_.Exception.Message). Falling back..." -ForegroundColor Yellow
         }
+    } else {
+        Write-Host "⚠ Winget not available. Falling back to manual download." -ForegroundColor Yellow
     }
-    return $false
-}
 
-# --- Function to check Postman installation ---
-function Test-PostmanInstalled {
-    $postmanPath = "C:\Program Files\Postman\Postman.exe"
-    return (Test-Path $postmanPath)
-}
-
-# --- Install Notepad++ if not present ---
-if (-not (Test-NotepadPPInstalled)) {
+    # Manual fallback
     try {
-        Write-Host "`nInstalling Notepad++..."
-        $nppInstallerPath = "$tempDir\npp_installer.exe"
-        $nppRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/notepad-plus-plus/notepad-plus-plus/releases/latest" -Headers @{ "User-Agent" = "PowerShell" }
-        $nppAsset = $nppRelease.assets | Where-Object { $_.name -like "*Installer.x64.exe" }
+        Write-Host "Downloading Postman installer..." -ForegroundColor Cyan
+        Invoke-WebRequest -Uri $postmanUrl -OutFile $postmanExe -UseBasicParsing
 
-        if ($nppAsset -and $nppAsset.browser_download_url) {
-            Invoke-WebRequest -Uri $nppAsset.browser_download_url -OutFile $nppInstallerPath
-            Start-Process -FilePath $nppInstallerPath -ArgumentList "/S" -Wait
-            Remove-Item -Path $nppInstallerPath -Force
-            Write-Host "Notepad++ installed."
+        Write-Host "Installing Postman silently..." -ForegroundColor Cyan
+        $install = Start-Process -FilePath $postmanExe -ArgumentList "/S" -Wait -PassThru
+
+        if ($install.ExitCode -eq 0) {
+            Write-Host "✅ Postman installed via direct download." -ForegroundColor Green
         } else {
-            Write-Warning "Could not find Notepad++ installer."
+            Write-Host "❌ Installer exited with code $($install.ExitCode)" -ForegroundColor Red
         }
+
+        Remove-Item -Path $postmanExe -Force -ErrorAction SilentlyContinue
+    } catch {
+        Write-Host "❌ Failed to install Postman: $($_.Exception.Message)" -ForegroundColor Red
     }
-    catch {
-        Write-Warning "Failed to install Notepad++: $_"
-    }
-} else {
-    Write-Host "Notepad++ is already installed. Skipping."
 }
 
-# --- Install Postman if not present ---
-if (-not (Test-PostmanInstalled)) {
-    try {
-        Write-Host "`nInstalling Postman..."
-        $postmanInstallerPath = "$tempDir\Postman-x64-Setup.exe"
-        $postmanUrl = "https://dl.pstmn.io/download/latest/win64"
-        Invoke-WebRequest -Uri $postmanUrl -OutFile $postmanInstallerPath
-        Start-Process -FilePath $postmanInstallerPath -ArgumentList "/S" -Wait
-        Remove-Item -Path $postmanInstallerPath -Force
-        Write-Host "Postman installed."
-    }
-    catch {
-        Write-Warning "Failed to install Postman: $_"
-    }
-} else {
-    Write-Host "Postman is already installed. Skipping."
-}
-
-# --- Cleanup ---
-if (Test-Path $tempDir) {
-    Remove-Item -Path $tempDir -Recurse -Force
-}
-Write-Host "`nAll tasks completed."
+# --- Call the function explicitly ---
+Install-Postman
