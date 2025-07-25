@@ -88,7 +88,9 @@ foreach ($svc in $services) {
 # Final summary
 if ($failedServices.Count -gt 0) {
     Write-Host "`nSome services failed to stop:" -ForegroundColor Red
-    $failedServices | ForEach-Object { Write-Host " - $_" -ForegroundColor Red }
+    foreach ($svc in $failedServices) {
+        Write-Host " - $svc" -ForegroundColor Red
+    }
     Write-Log -Message "Some services failed to stop." -Level "ERROR"
 } else {
     Write-Host "`n✔️ All services stopped successfully." -ForegroundColor Green
