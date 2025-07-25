@@ -1,14 +1,13 @@
+
 # ============================================
 # XKTools - Download AZCopy and SQLPackage
 # Created by: Francisco Silva
-# Contact: francisco@mtxn.com.br
-# Updated for PS 5.1 & PS 7+ by PowerShell GPT
 # ============================================
 
 # Auto-elevate to admin (using pwsh if needed)
 If (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
     [Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host "Restarting script as Administrator with ExecutionPolicy Bypass..." -ForegroundColor Yellow
+    Write-Host "Restarting script as Administrator with ExecutionPolicy Bypass..."
     $arguments = "-NoProfile -ExecutionPolicy Bypass -File `"" + $MyInvocation.MyCommand.Path + "`""
     Start-Process pwsh -Verb RunAs -ArgumentList $arguments
     exit
@@ -53,16 +52,16 @@ if (-not (Test-Path -Path $downloadFolder)) {
 }
 
 function FastDownload ($url, $destination) {
-    Write-Host "Downloading from $url..." -ForegroundColor Cyan
+    Write-Host "Downloading from $url..."
     Write-Log -Message "Starting download: $url -> $destination" -Level "INFO"
     try {
         $response = $http.GetAsync($url).Result
         [System.IO.File]::WriteAllBytes($destination, $response.Content.ReadAsByteArrayAsync().Result)
-        Write-Host "Download completed: $destination" -ForegroundColor Green
+        Write-Host "Download completed: $destination"
         Write-Log -Message "Download successful: $destination" -Level "INFO"
     } catch {
-        Write-Warning "Failed to download from ${url}: $_"
-        Write-Log -Message "ERROR: Failed to download from ${url}: $_" -Level "ERROR"
+        Write-Warning "Failed to download from $url"
+        Write-Log -Message "ERROR: Failed to download from $url - $_" -Level "ERROR"
         exit 1
     }
 }
@@ -130,11 +129,12 @@ try {
         Write-Log -Message "SQLPackage archive extracted to $sqlPackageExtractFolder" -Level "INFO"
     }
 
-    Write-Host "`n✔️ Download and setup completed." -ForegroundColor Green
+    Write-Host ""
+    Write-Host "Download and setup completed successfully."
     Write-Log -Message "Download and setup completed successfully." -Level "INFO"
 }
 catch {
-    Write-Warning "❌ Unexpected error occurred: $_"
+    Write-Warning "An unexpected error occurred: $_"
     Write-Log -Message "UNEXPECTED ERROR: $_" -Level "ERROR"
 }
 
